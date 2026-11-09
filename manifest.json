@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TuiRead",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Đọc raw truyện tiếng Trung",
   "icons": {
     "16": "icons/icon16.png",
@@ -9,8 +9,14 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "offscreen", "unlimitedStorage", "scripting"],
-  "optional_host_permissions": ["*://*/*"],
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "scripting"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
+  ],
   "host_permissions": [
     "*://uukanshu.cc/*",
     "*://*.uukanshu.cc/*",
@@ -18,7 +24,10 @@
     "*://piaotia.com/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": [
+      "background.js"
+    ]
   },
   "content_scripts": [
     {
@@ -28,8 +37,12 @@
         "*://www.piaotia.com/*",
         "*://piaotia.com/*"
       ],
-      "js": ["content.js"],
-      "css": ["styles/content.css"],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "styles/content.css"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -43,5 +56,19 @@
       "128": "icons/icon128.png"
     }
   },
-  "options_page": "options.html"
+  "options_page": "options.html",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tuiread@memories169",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  }
 }

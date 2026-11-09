@@ -246,7 +246,7 @@ while (Date.now() - tReady < 90000) {
   await sleep(1500);
 }
 record('engineStatus trong chrome.storage = ready (popup doc duoc)', status && status.state === 'ready', status && status.message);
-record('lay settings TU service worker, khong phai mac dinh', status && status.settingsSource === 'service-worker', status && status.settingsSource);
+record('lay settings TU background, khong phai mac dinh', status && status.settingsSource === 'background', status && status.settingsSource);
 record('IndexedDB song trong offscreen that (cache ban dich ben lau)', status && status.cache && status.cache.persistent === true, JSON.stringify(status && status.cache));
 console.log('  engine: loadMs=' + (status && status.loadMs) + ' | VP=' + (status && status.info && status.info.vp) + ' | VP file=' + (status && status.bytes && status.bytes.vp ? (status.bytes.vp / 1048576).toFixed(1) + 'MB' : '?'));
 

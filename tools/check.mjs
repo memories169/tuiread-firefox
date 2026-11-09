@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadEngine, parseDict, parseT2S, decode, FILES, createEngine } from '../engine/index.js';
@@ -14,6 +15,8 @@ import { stripComments } from './lib/strip-comments.mjs';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const readFile = name => fs.readFileSync(path.join(root, 'dict', name));
 const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+// Ma da cat comment — dung o nhieu section (6a chung minh bo lot nay an toan truoc khi tin).
+const codeOf = f => stripComments(read(f));
 const verbose = process.argv.includes('--verbose');
 const fast = process.argv.includes('--fast');
 
@@ -285,15 +288,36 @@ if (!fast) {
 }
 
 // ---------------------------------------------------------------- 6. Goi package
-section('6. Cau truc goi MV3');
+section('6. Cau truc goi MV3 (Firefox)');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
 check('manifest_version = 3', manifest.manifest_version === 3);
-check('quyen: storage + offscreen + unlimitedStorage + scripting', ['storage', 'offscreen', 'unlimitedStorage', 'scripting'].every(p => manifest.permissions.includes(p)), manifest.permissions.join(','));
+// Firefox khong biet quyen "offscreen" (API do Chrome/Edge them) — neu de trong permissions
+// thi AMO/web-ext lint huy/tu choi goi. Engine page di qua background.scripts + iframe (xem
+// background.js), khong can quyen do nua.
+check('quyen: storage + unlimitedStorage + scripting (khong kem offscreen: Firefox/AMO tu choi coi la khong ton tai)',
+  ['storage', 'unlimitedStorage', 'scripting'].every(p => manifest.permissions.includes(p))
+    && !manifest.permissions.includes('offscreen'), manifest.permissions.join(','));
 check('optional_host_permissions mo luong them site dong (khong phai quyen cung)',
   (manifest.optional_host_permissions || []).includes('*://*/*') && !manifest.permissions.includes('*://*/*'),
   JSON.stringify(manifest.optional_host_permissions));
 check('khong dung <all_urls>', !manifest.host_permissions.includes('<all_urls>'));
 check('host_permissions == matches cua content_scripts', JSON.stringify(manifest.host_permissions) === JSON.stringify(manifest.content_scripts[0].matches));
+
+// Dual background (MDN background): Firefox chi dung service_worker KHONG load duoc gi
+// (BCD: background.service_worker = false tren Firefox) -> phai co background.scripts cho
+// event page; Chrome 121+ bo qua background.scripts trong MV3. Can ca hai.
+check('background dual: service_worker (Chrome) + scripts (Firefox)',
+  manifest.background && manifest.background.service_worker === 'background.js'
+    && Array.isArray(manifest.background.scripts) && manifest.background.scripts.includes('background.js'),
+  JSON.stringify(manifest.background));
+check('browser_specific_settings.gecko: id + strict_min_version >= 140 + khai khong thu thap du lieu',
+  manifest.browser_specific_settings && manifest.browser_specific_settings.gecko
+    && /^[\w.-]+@[\w.-]+$/.test(manifest.browser_specific_settings.gecko.id || '')
+    && Number(String(manifest.browser_specific_settings.gecko.strict_min_version || 0).split('.')[0]) >= 140
+    && JSON.stringify((manifest.browser_specific_settings.gecko.data_collection_permissions || {}).required) === '["none"]'
+    && manifest.browser_specific_settings.gecko_android
+    && Number(String(manifest.browser_specific_settings.gecko_android.strict_min_version || 0).split('.')[0]) >= 142,
+  JSON.stringify(manifest.browser_specific_settings));
 
 const referenced = [
   manifest.background.service_worker,
@@ -329,13 +353,17 @@ check('options co o nhap URL + nut Tai tu URL (giu nguyen Nhap file)',
   /id="ovUrl"/.test(read('options.html')) && /id="ovUrlLoad"/.test(read('options.html'))
     && /id="ovImport"/.test(read('options.html')) && /ovUrlLoad'\)\.addEventListener\('click'/.test(read('options.js')));
 check('tai URL co fallback xin quyen mien khi server kin CORS',
-  /chrome\.permissions\.contains/.test(read('options.js')) && /chrome\.permissions\.request/.test(read('options.js')));
+  /permissions\.contains/.test(read('options.js')) && /permissions[\s\S]{0,30}request/.test(read('options.js'))
+    && /callP\(chrome\.permissions, 'request'/.test(read('options.js')));
 check('URL tai thanh cong duoc nho lai cho lan sau',
   /storeSet\(\{ ovUrl: url\.href \}\)/.test(read('options.js')) && /loadUrlPref\(\)/.test(read('options.js')));
 
-// background + offscreen phai tham chieu dung duong dan that
+// background + engine page phai tham chieu dung duong dan that
 const bg = fs.readFileSync(path.join(root, 'background.js'), 'utf8');
-check('background tro toi offscreen.html', /offscreen\.html/.test(bg));
+check('background tro toi offscreen.html (iframe engine page)', /OFFSCREEN_PATH\s*=\s*'offscreen\.html'/.test(bg));
+check('iframe engine page chi tro den trang extension (getURL), khong URL ben ngoai',
+  /createElement\(\s*'iframe'[\s\S]{0,600}?getURL\(\s*OFFSCREEN_PATH\s*\)/.test(bg)
+    && !/createElement\(\s*'iframe'[\s\S]{0,600}?(src|url)\s*[:=]\s*(['"`])(https?:|javascript:|data:)/i.test(bg));
 const offHtml = fs.readFileSync(path.join(root, 'offscreen.html'), 'utf8');
 check('offscreen.html nap offscreen.js kiieu module', /type="module"[^>]*offscreen\.js/.test(offHtml) || /offscreen\.js"[^>]*type="module/.test(offHtml));
 for (const f of Object.values(FILES)) {
@@ -346,18 +374,32 @@ check('content.js khong dung import/export', !/^\s*(import|export)\s/m.test(fs.r
 check('engine/ khong thuoc web_accessible_resources (chi offscreen doc duoc)', !manifest.web_accessible_resources);
 
 // Duyen het cac loai tin nhan vp:* duoc gui -> phai co noi xu ly.
-// vp:command di qua chrome.tabs.sendMessage (content script tra loi), cac loai khac qua runtime (background/offscreen).
+// vp:command di qua chrome.tabs.sendMessage (content script tra loi); cac loai khac qua
+// runtime. Senders KHONG gom background: no la nguoi TIEU THU vp:get-settings/vp:set/...
+// (tu popup/options/content) va push vp:settings/vp:overrides ra cho engine — offscreen.js
+// (nguoi nhan do) da tinh du o handlerFiles duoi day.
 const senders = ['content.js', 'popup.js', 'options.js'];
 const handlerFiles = ['background.js', 'offscreen.js', 'content.js'];
 const sent = new Set();
-for (const f of senders) for (const m of read(f).matchAll(/type:\s*'(vp:[a-z]+)'/g)) sent.add(m[1]);
+for (const f of senders) for (const m of read(f).matchAll(/type:\s*'(vp:[a-z-]+)'/g)) sent.add(m[1]);
 const handled = new Map();
-for (const f of handlerFiles) for (const m of read(f).matchAll(/msg\.type\s*[!=]==\s*'(vp:[a-z]+)'/g)) {
+for (const f of handlerFiles) for (const m of read(f).matchAll(/msg\.type\s*[!=]==\s*'(vp:[a-z-]+)'/g)) {
   if (!handled.has(m[1])) handled.set(m[1], []);
   handled.get(m[1]).push(f);
 }
 for (const type of sent) check('co noi xu ly tin nhan ' + type, handled.has(type), 'gui tu ' + senders.join('/') + ' | xu ly o ' + (handled.get(type) || []).join(','));
-check('vp:ensure + vp:status + vp:translate + vp:rebuild + vp:reload deu qua runtime', ['vp:ensure', 'vp:status', 'vp:translate', 'vp:rebuild', 'vp:reload'].every(t => handled.has(t)), [...handled.keys()].join(','));
+check('vp:ensure + vp:status + vp:translate + vp:rebuild + vp:reload + vp:tokens deu qua runtime',
+  ['vp:ensure', 'vp:status', 'vp:translate', 'vp:rebuild', 'vp:reload', 'vp:tokens'].every(t => handled.has(t)),
+  [...handled.keys()].join(','));
+// Lenh background GUI cho engine (push settings/override moi) phai co nguoi nhan la offscreen.js.
+check('background push vp:settings + vp:overrides -> offscreen.js nhan',
+  ['vp:settings', 'vp:overrides'].every(t => read('background.js').includes("type: '" + t + "'"))
+    && ['vp:settings', 'vp:overrides'].every(t => handled.has(t) && handled.get(t).includes('offscreen.js')),
+  JSON.stringify({ vp_settings: handled.get('vp:settings'), vp_overrides: handled.get('vp:overrides') }));
+// Ping keepalive: content script giu port 'vp:keepalive' mo de background/event page khong
+// unload khi user dang doc (MDN Background_scripts); background phai nhan port do.
+check('content.js mo port keepalive vp:keepalive', /connect\(\s*\{\s*name:\s*'vp:keepalive'\s*\}/.test(read('content.js')));
+check('background.js lang nghe port vp:keepalive + tra pong', /onConnect\.addListener/.test(bg) && /'vp:keepalive'/.test(bg) && /'pong'/.test(bg));
 
 // ---------------------------------------------------------------- 6a. Thước đo: bộ lột comment
 // Mục 6b và `npm run audit` đều quét trên code đã lột comment. Bản lột bằng regex cũ
@@ -393,8 +435,7 @@ fs.rmSync(tmpDir, { recursive: true, force: true });
 // Edge 155 khong cap chrome.storage cho offscreen document (do bang probe /tmp/vp-probe).
 // Nen bat buoc: chi background.js duoc viet doc; ai khong phai SW thi phai hoi bang tin nhan.
 // Doi tuong kiem tra la PHAN CODE (da cat comment), vi comment co quyen noi ve chrome.storage.
-section('6b. Luu tru: chi service worker duoc cham chrome.storage');
-const codeOf = f => stripComments(read(f));
+section('6b. Luu tru: chi background (event page/SW) duoc cham chrome.storage');
 const STORAGE_RE = /chrome\.storage\s*\./;
 for (const f of ['offscreen.js', 'content.js', 'popup.js', 'options.js', 'db.js']) {
   check(f + ' khong cham chrome.storage trong code', !STORAGE_RE.test(codeOf(f)), (codeOf(f).match(/.{0,50}chrome\.storage\s*\..{0,20}/) || [])[0]);
@@ -416,7 +457,7 @@ check('content.js khong code cung selector site', !/readcotent|td\.tbd/.test(cod
 check('background giu selector mac dinh (seed cho 2 site goc)',
   /DEFAULT_SITE_SELECTORS\s*=\s*\{[^}]*uukanshu\.cc/.test(codeOf('background.js')));
 check('popup co luong them site (permissions.request + vp:site-add)',
-  /permissions\.request/.test(codeOf('popup.js')) && /vp:site-add/.test(codeOf('popup.js')));
+  /callP\(chrome\.permissions, 'request'/.test(codeOf('popup.js')) && /vp:site-add/.test(codeOf('popup.js')));
 check('background xu ly vp:site-add + vp:site-remove + vp:sites (registerContentScripts)',
   ['vp:site-add', 'vp:site-remove', 'vp:sites'].every(t => new RegExp("msg\\.type === '" + t + "'").test(bg))
     && /registerContentScripts/.test(codeOf('background.js')));
@@ -428,7 +469,7 @@ check('offscreen bao tien do tung file (popup nhin thay ket o dau)', /progress:\
 
 // ---------------------------------------------------------------- 7. Chinh file offscreen.js
 if (!fast) {
-  section('7. offscreen.js nap tu dien + luu tru qua service worker');
+  section('7. offscreen.js (engine page) nap tu dien + luu tru qua background');
 
   // Gia lap DUNG rang buoc cua Edge 155 da do bang probe:
   //   offscreen document KHONG co chrome.storage / tabs / offscreen / runtime.getManifest,
@@ -471,7 +512,7 @@ if (!fast) {
   }
   check('offscreen dat state=ready khi khong co chrome.storage', st && st.state === 'ready', st ? st.state + ' / ' + st.message : 'khong tra loi');
   check('offscreen bao cao dung so muc tu', st && st.info && st.info.vp === engine.info.vp && st.info.pa === engine.info.pa, st && JSON.stringify(st.info));
-  check('offscreen lay settings TU background (khong tu doc storage)', st && st.settingsSource === 'service-worker', st && st.settingsSource);
+  check('offscreen lay settings TU background (khong tu doc storage)', st && st.settingsSource === 'background', st && st.settingsSource);
   // Push chay qua setTimeout cua mock nen phai CHO: poll vong tren thay ready trong khi
   // push "ready" van dang doi trong hang doi timer (createEngine chan dong bo ~2s truoc do).
   let kvStatus = null;
@@ -505,9 +546,108 @@ if (!fast) {
   check('offscreen van boot khi background khong tra loi', st2 && st2.state === 'ready', st2 ? st2.state + ' / ' + st2.message : 'khong tra loi');
   const tr2 = await ask2({ type: 'vp:translate', texts: ['這是系統'] });
   check('dich duoc ma khong can chrome.storage', tr2 && tr2.ok && tr2.results[0] === 'Đây là hệ thống', tr2 && JSON.stringify(tr2.results));
-  check('canh bao ro le khi mat nguon settings', st2 && /service worker/i.test(st2.warning || ''), st2 && st2.warning);
+  check('canh bao ro le khi mat nguon settings', st2 && /background/i.test(st2.warning || ''), st2 && st2.warning);
   check('khong treo vi thieu storage: co timeout khi goi background', /setTimeout\(\(\) => finish\(null\)/.test(read('offscreen.js')));
   swUp = true;
+}
+
+// ---------------------------------------------------------------- 8. background.js (Firefox): iframe + keepalive
+// Section 7 test ENGINE (offscreen.js). Section nay test NGUOC LAI background.js theo kieu
+// Firefox that su: khong chrome.offscreen, khong document -> vp:ensure phai TRA LOI OK ma van
+// khong tao duoc engine page (guong quan ly loi), vp:set/override-set ghi duoc storage (callP
+// callback), port keepalive ping/pong, va storage.onChanged broadcast vp:store-changed.
+if (!fast) {
+  section('8. background.js tren Firefox (khong offscreen API): luu tru + keepalive');
+  const listenersBg = [];
+  const onChangeBg = [];
+  const mockStore = { settings: { mode: 'vi' } };
+  const vmChrome = {
+    runtime: {
+      id: 'check-bg',
+      getURL: p => 'moz-extension://check-bg/' + p,
+      getManifest: () => ({
+        permissions: ['storage', 'unlimitedStorage', 'scripting'],
+        content_scripts: [{ matches: ['*://uukanshu.cc/*', '*://*.uukanshu.cc/*', '*://www.piaotia.com/*', '*://piaotia.com/*'] }]
+      }),
+      lastError: null,
+      onMessage: { addListener: fn => listenersBg.push(fn) },
+      onInstalled: { addListener() {} },
+      onStartup: { addListener() {} },
+      onConnect: { addListener() {} },
+      // runtime.sendMessage that su: den TAT CA context khac (test lang nghe vp:store-changed),
+      // roi callback tra loi (khong ai tra loi = ack {ok:true}). Khong giong Chrome: khong phai
+      // chi goi cb ma khong gianh cho listener — neu khong, broadcast vp:store-changed mat.
+      sendMessage: (msg, cb) => {
+        let responded = false;
+        const respond = resp => { if (!responded) { responded = true; if (cb) cb(resp); } };
+        for (const fn of listenersBg) {
+          try { fn(msg, { id: 'bg-sender' }, respond); } catch { /* listener loi bo qua */ }
+        }
+        if (!responded) respond({ ok: true });
+      }
+    },
+    storage: {
+      local: {
+        get: keys => Promise.resolve(Object.fromEntries((Array.isArray(keys) ? keys : [keys]).map(k => [k, mockStore[k]]))),
+        set: obj => { Object.assign(mockStore, obj); return Promise.resolve(); }
+      },
+      onChanged: { addListener: fn => onChangeBg.push(fn) }
+    },
+    scripting: {
+      getRegisteredContentScripts: () => Promise.resolve([]),
+      registerContentScripts: () => Promise.resolve(),
+      unregisterContentScripts: () => Promise.resolve()
+    },
+    permissions: { remove: () => Promise.resolve(), request: () => Promise.resolve(true) }
+  };
+  vm.runInNewContext(stripComments(read('background.js')), {
+    chrome: vmChrome, console, setTimeout, clearTimeout, Promise
+  });
+
+  const askBg = msg => new Promise(resolve => {
+    let answered = false;
+    const respond = r => { if (!answered) { answered = true; resolve(r); } };
+    let asyncWait = 0;
+    for (const fn of listenersBg) if (fn(msg, { id: 'check-bg' }, respond) === true) asyncWait++;
+    if (!asyncWait && !answered) setTimeout(() => respond(undefined), 0);
+    setTimeout(() => respond({ __timeout: true }), 5000);
+  });
+
+  const ensured = await askBg({ type: 'vp:ensure' });
+  check('vp:ensure tra loi OK ma van bao khong tao duoc engine page (khong cam/sai loi)',
+    ensured && ensured.ok === false && ensured.error && /không tạo được engine page|khong tao duoc engine page/.test(ensured.error),
+    JSON.stringify(ensured));
+
+  const got = await askBg({ type: 'vp:get-settings' });
+  check('vp:get-settings tra settings + siteSelectors mac dinh 2 site goc',
+    got && got.ok && got.settings && got.siteSelectors && /\.readcotent/.test(got.siteSelectors['uukanshu.cc'])
+      && /td\.tbd/.test(got.siteSelectors['piaotia.com']), JSON.stringify(got && got.siteSelectors));
+
+  const setResp = await askBg({ type: 'vp:set', patch: { settings: { mode: 'vi-han' } } });
+  check('vp:set ghi vao chrome.storage qua callP (mac dinh Firefox khong tra promise)',
+    setResp && setResp.ok && mockStore.settings.mode === 'vi-han', JSON.stringify({ setResp, mode: mockStore.settings.mode }));
+
+  const ov = await askBg({ type: 'vp:override-set', han: '这是系统', vi: 'Bản vá test' });
+  check('vp:override-set luu override + bump version + push sang engine',
+    ov && ov.ok && mockStore.overrides && mockStore.overrides['这是系统'] === 'Bản vá test' && ov.version >= 1,
+    JSON.stringify({ ov, overrides: mockStore.overrides }));
+
+  // storage.onChanged (background la noi duy nghe) -> background broadcast vp:store-changed cho options.
+  const seenStore = [];
+  listenersBg.push(msg => { if (msg && msg.type === 'vp:store-changed') seenStore.push(msg); return false; });
+  onChangeBg.forEach(fn => fn({ overrides: { oldValue: {}, newValue: { 新: 'mới' } } }, 'local'));
+  await new Promise(r => setTimeout(r, 50));
+  check('storage.onChanged -> background phat vp:store-changed cho options dang mo',
+    seenStore.length >= 1, JSON.stringify(seenStore[0] || null));
+
+  onChangeBg.forEach(fn => fn({ overrides: { oldValue: { 新: 'mới' }, newValue: { 更新: 'cập nhật' } } }, 'local'));
+  await new Promise(r => setTimeout(r, 50));
+  check('broadcast lan 2 (override doi lan 2 van phat)', seenStore.length >= 2, seenStore.length);
+
+  // Sua loi TDZ da gap: section 6a su dung codeOf truoc khi no duoc khai bao.
+  let tdzCaught = null;
+  try { void codeOf; } catch (e) { tdzCaught = String(e); }
+  check('codeOf duoc khai bao TRUOC khi section 6a dung (khong TDZ ReferenceError)', tdzCaught === null, tdzCaught);
 }
 
 // ---------------------------------------------------------------- Ket

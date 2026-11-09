@@ -11,6 +11,23 @@ function ask(message) {
   });
 }
 
+// Gọi API extension bằng callback — Firefox 128 không trả promise từ chrome.* (chỉ browser.*).
+// Callback là giao diện gốc của cả hai; mock trong test trả Promise (thenable) vẫn chạy.
+function callP(target, method, ...args) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (finish, value) => { if (!settled) { settled = true; finish(value); } };
+    let ret;
+    try {
+      ret = target[method](...args, value => {
+        const err = chrome.runtime.lastError;
+        if (err) done(reject, new Error(err.message)); else done(resolve, value);
+      });
+    } catch (err) { done(reject, err); return; }
+    if (ret && typeof ret.then === 'function') ret.then(v => done(resolve, v), e => done(reject, e));
+  });
+}
+
 function current() {
   const out = {};
   for (const key of KEYS) {
@@ -20,7 +37,7 @@ function current() {
   return out;
 }
 
-// Moi luu tru di qua service worker; no day settings sang offscreen va offscreen tu
+// Moi luu tru di qua background; no day settings sang engine page va engine tu
 // dung lai engine neu cai gi doi thay doi cach dich (firstMeaning/skipParticles/useRules/useNames).
 async function storeGet(keys) {
   const got = await ask({ type: 'vp:get-settings' });
@@ -50,7 +67,7 @@ $('save').addEventListener('click', async () => {
   const engineOk = st && (st.state === 'ready' || st.state === 'loading');
   $('msg').textContent = saved
     ? (engineOk ? 'Đã lưu. Engine tự dựng lại nếu bạn đổi cách chọn nghĩa / rule / Names.' : 'Đã lưu nhưng engine chưa trả lời - bấm "Nạp lại từ điển" ở popup.')
-    : 'KHÔNG LƯU ĐƯỢC: service worker không ghi được bộ nhớ của extension. Xem mục “Sự cố hay gặp” trong README.';
+    : 'KHÔNG LƯU ĐƯỢC: background không ghi được bộ nhớ của extension. Xem mục “Sự cố hay gặp” trong README.';
   setTimeout(() => { $('msg').textContent = ''; }, 5000);
 });
 
@@ -96,7 +113,7 @@ $('ovText').addEventListener('input', () => {
 });
 
 // Vá từ card trên trang / nơi khác: phản ánh ngay vào ô (chỉ khi ô không đang được sửa tay,
-// tránh ghi đè phần đang gõ dở). Đang dirty thì chỉ nhắc. Service worker nghe storage rồi
+// tránh ghi đè phần đang gõ dở). Đang dirty thì chỉ nhắc. Background nghe storage rồi
 // phát tin này — options không tự chạm chrome.storage (xem background.js).
 chrome.runtime.onMessage.addListener(msg => {
   if (!msg || msg.type !== 'vp:store-changed' || !(msg.keys || []).includes('overrides')) return;
@@ -119,7 +136,7 @@ function parseOverrideLines(text) {
 async function applyOverrides(entries, note) {
   if (!entries.length) { ovMsg('Không có dòng hợp lệ nào (dạng 漢=nghĩa).'); return false; }
   const resp = await ask({ type: 'vp:override-replace', entries });
-  if (!resp || !resp.ok) { ovMsg('KHÔNG LƯU ĐƯỢC: ' + ((resp && resp.error) || 'service worker không trả lời')); return false; }
+  if (!resp || !resp.ok) { ovMsg('KHÔNG LƯU ĐƯỢC: ' + ((resp && resp.error) || 'background không trả lời')); return false; }
   await loadOverrides();
   ovMsg(note + ` Đã vá ${Object.keys(resp.overrides).length} mục.` + (resp.pushed ? '' : ' (Engine chưa trả lời — sẽ dùng bản vá ở lần dịch sau.)'));
   return true;
@@ -176,10 +193,15 @@ async function fetchOverrideText(url) {
   try {
     return await attempt();
   } catch (first) {
+    // Firefox: host_permissions của MV3 chỉ hiển thị lúc cài (FF128+) chứ KHÔNG tự grant —
+    // truy cập trang bị từ chối cho tới khi user grant runtime. Do đó "thử thất bại -> xin
+    // quyền -> thử lại" là luồng chính trên Firefox (Chrome vẫn chạy nhờ CORS).
+    // permissions.request phải gọi CÓ CALLBACK (xem popup.js): không callback thì Firefox cũ
+    // trả undefined -> grant bị coi như từ chối.
     const origins = [url.origin + '/*'];
     const has = await new Promise(res => chrome.permissions.contains({ origins }, res));
     if (has) throw first;
-    const granted = await new Promise(res => chrome.permissions.request({ origins }, res));
+    const granted = await callP(chrome.permissions, 'request', { origins });
     if (!granted) throw new Error(first.message + ' — trang không mở CORS và bạn chưa cấp quyền cho miền này');
     return attempt();
   } finally {
@@ -258,7 +280,7 @@ $('siteSave').addEventListener('click', async () => {
   const saved = await storeSet({ siteSelectors: map });
   siteMsg(saved
     ? `Đã lưu selector cho ${Object.keys(map).length} trang. Bấm "Dịch lại trang" ở popup để áp dụng.`
-    : 'KHÔNG LƯU ĐƯỢC: service worker không trả lời.', !saved);
+    : 'KHÔNG LƯU ĐƯỢC: background không trả lời.', !saved);
 });
 
 load();

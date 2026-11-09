@@ -1,5 +1,6 @@
-// Content script: tim text node goc truyen, gui sang offscreen engine, ghi ket qua convert.
-// Khong chua tu dien o day - content script dung chung heap voi tab.
+// Content script: tim text node goc truyen, gui sang engine page (background/iframe hoac
+// offscreen document), ghi ket qua convert. Khong chua tu dien o day - content script dung
+// chung heap voi tab.
 
 (function () {
   'use strict';
@@ -19,7 +20,7 @@
   let observer = null;
   let queue = new Set();
   let timer = null;
-  let overridesMap = {};       // ban vá của user: { chữ Hán: nghĩa } — đọc từ service worker, cập nhật sau mỗi lần lưu
+  let overridesMap = {};       // ban vá của user: { chữ Hán: nghĩa } — đọc từ background, cập nhật sau mỗi lần lưu
   let siteSelectors = {};      // selector khu vực truyện theo host — cấu hình trong options, KHÔNG cứng trong code
 
   function host() {
@@ -82,12 +83,47 @@
     return out;
   }
 
+  // ---------------------------------------------------------------- keep-alive (Firefox)
+  // Giu background (event page) + engine page (iframe trong background) song trong khi user
+  // dang doc trang: Firefox khong unload background khi con port/message port mo (MDN
+  // Background_scripts). Chi connect thi van con khuyen/canh bao "phai thuong xuyen gui tin
+  // qua port" (discourse.mozilla.org/t/124263) -> ping moi 20s cho chac. Port dong khi tab
+  // dong -> background tu unload -> engine mat -> lan doc sau se tai lai (vp:ensure truoc
+  // khi dich). Chrome van dung duoc port nay (van loi thuong: SW dua vao tin nhan de reset
+  // idle timer). Chrome mock trong test (jsdom) khong co runtime.connect -> guard bo qua.
+  let keepAlivePort = null;
+  let keepAliveTimer = null;
+  let keepAliveFails = 0;
+  function keepAliveStop() {
+    if (keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
+    keepAlivePort = null;
+  }
+  function keepAliveStart() {
+    try {
+      if (!chrome.runtime || typeof chrome.runtime.connect !== 'function') return;
+      keepAlivePort = chrome.runtime.connect({ name: 'vp:keepalive' });
+      keepAlivePort.onMessage.addListener(msg => { if (msg === 'pong') keepAliveFails = 0; });
+      keepAlivePort.onDisconnect.addListener(() => {
+        keepAliveStop();
+        // Background/mat port khong phai luc nao cung do tab dong: background crash/giiet la
+        // mot lan. Connect lai = dayh thuc event page bang runtime (FF/event page wake on
+        // connect), nhung gioi han 5 lan de khong vong vo han khi extension bi go.
+        if (keepAliveFails++ < 5) setTimeout(() => keepAliveStart(), 1500);
+      });
+      if (keepAliveTimer) clearInterval(keepAliveTimer);
+      keepAliveTimer = setInterval(() => {
+        if (!keepAlivePort) { keepAliveStop(); return; }
+        try { keepAlivePort.postMessage('ping'); } catch { /* port da dong -> onDisconnect lo */ }
+      }, 20000);
+    } catch { keepAliveStop(); }
+  }
+
   function send(message) {
     return new Promise(resolve => {
       let settled = false;
       const finish = value => { if (!settled) { settled = true; clearTimeout(timer); resolve(value); } };
-      // Offscreen có thể chết giữa chừng (Edge thu hồi renderer); không có timeout thì trang
-      // kẹt "đang dịch" vĩnh viễn và người dùng không còn cách nào trừ restart Edge.
+      // Engine co the khong ton tai (Firefox: chua tao iframe; Edge thu hoi renderer); khong
+      // co timeout thi trang khet "dang dich" vinh vien va nguoi dung khong con cach nao.
       const timer = setTimeout(() => finish({ ok: false, error: 'hết giờ chờ engine (15s)' }), 15000);
       try {
         chrome.runtime.sendMessage(message, response => {
@@ -100,12 +136,20 @@
     });
   }
 
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // vp:ensure -> background tao engine page (Firefox: iframe an trong background; Chrome:
+  // offscreen document) roi CHO engine page nhan onMessage (module script chua kip chay tu
+  // iframe/HTML moi tao) truoc khi dich lai. Lan thu 2/3 de phong truong hop load cham.
   async function askTranslate(texts) {
     let resp = await send({ type: 'vp:translate', texts });
     if (resp && resp.ok) return resp.results;
     await send({ type: 'vp:ensure' });
-    resp = await send({ type: 'vp:translate', texts });
-    if (resp && resp.ok) return resp.results;
+    for (const wait of [300, 900]) {
+      await sleep(wait);
+      resp = await send({ type: 'vp:translate', texts });
+      if (resp && resp.ok) return resp.results;
+    }
     throw new Error((resp && resp.error) || 'engine khong phan hoi');
   }
 
@@ -220,7 +264,7 @@
 
   // ---------------------------------------------------------------- tokenMap click-to-edit
   // Bấm vào một đoạn đã dịch -> hiện card: chữ Hán gốc + nghĩa đang dùng + ô sửa nghĩa.
-  // Lưu -> ghi vào layer override (chrome.storage qua service worker) -> engine rebuild
+  // Lưu -> ghi vào layer override (chrome.storage qua background) -> engine rebuild
   // -> cache tự chết theo version -> dịch lại trang với nghĩa mới. File từ điển gốc không
   // bao giờ bị sửa; bản vá nằm riêng và export/import được từ options page.
   const KIND_LABELS = {
@@ -350,7 +394,7 @@
   document.addEventListener('click', e => { onDocClick(e); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePop(); });
 
-  // Doc config qua service worker, khong doc chrome.storage truc tiep:
+  // Doc config qua background (event page), khong doc chrome.storage truc tiep:
   // background la noi luu tru duy nhat va chac chan co chrome.storage (xem background.js).
   async function loadConfig() {
     const got = await send({ type: 'vp:get-settings' });
@@ -388,6 +432,7 @@
   });
 
   async function init() {
+    keepAliveStart();
     await loadConfig();
     if (!hostEnabled) return;
     await runOnce();

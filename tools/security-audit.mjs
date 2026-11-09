@@ -36,7 +36,10 @@ const DANGEROUS = [
   ['document.write / writeln', /document\.write(?:ln)?\s*\(/],
   ['eval()', /(?<![\w.'])eval\s*\(/],
   ['new Function()', /new\s+Function\s*\(/],
-  ['srcdoc / iframe din', /\.srcdoc|createElement\(\s*['"]iframe/i],
+  // srcdoc = vector bơm HTML. createElement('iframe') KHÔNG còn nằm trong danh sách đen:
+  // background.js chèn engine page (trang extension CỦA CHÚNG TA, moz-extension://internal)
+  // bằng iframe ẩn thay cho chrome.offscreen mà Firefox không có — không phải nhúng nguồn ngoài.
+  ['srcdoc', /\.srcdoc\s*=/],
   ['setTimeout/setInterval voi chuoi', /set(Timeout|Interval)\s*\(\s*['"`]/],
   ['fetch/XHR den URL ben ngoai', /(?:fetch|XMLHttpRequest)\s*\(\s*['"`]https?:\/\//i],
   ['websocket', /new\s+WebSocket|wss?:\/\//i],
@@ -66,6 +69,12 @@ check('loi goi mang = doc tu dien cua goi + tai file ban va theo URL nguoi dung 
   netCalls.length === 2 && dictCalls.length === 1 && urlCalls.length === 1, netCalls.join(' | '));
 check('tai URL la GET-only, khong gui du lieu cua nguoi dung len mang',
   !/method\s*:\s*['"](POST|PUT|PATCH|DELETE)/i.test(codeOf('options.js')));
+
+// iframe engine (thay chrome.offscreen tren Firefox) CHI duoc tro toi trang extension cua
+// minh, khong the tro toi nguon khac (neu khong, ta da mo cua cho tai noi dung tu ben ngoai).
+check('iframe engine chi tro den OFFSCREEN_PATH (trang extension noi bo)',
+  /createElement\(\s*'iframe'[\s\S]{0,600}?getURL\(\s*OFFSCREEN_PATH\s*\)/.test(codeOf('background.js'))
+    && !/createElement\(\s*'iframe'[\s\S]{0,600}?(src|url)\s*[:=]\s*(['"`])(https?:|javascript:|data:)/i.test(codeOf('background.js')));
 
 // Quyen: toi thieu, khong <all_urls>
 const manifest = JSON.parse(read('manifest.json'));
@@ -136,7 +145,7 @@ const PHAT_HANH = false;
 section('4. Nguon goc va giay phep' + (PHAT_HANH ? '' : ' (che do CHI DUNG LOCAL theo chot cua chu project)'));
 const STRUCT = [
   ['package.json cua tool la private (Chrome khong doc file nay)', fs.existsSync(path.join(root, 'package.json'))],
-  ['khong co file/thu muc ten bat dau bang _ hoac . (Chrome/Edge tu choi Load unpacked)', !fs.readdirSync(root).some(f => f.startsWith('_') || (f.startsWith('.') && f !== '.gitignore'))],
+  ['khong co file/thu muc ten bat dau bang _ hoac . (Chrome/Edge tu choi Load unpacked)', !fs.readdirSync(root).some(f => f.startsWith('_') || (f.startsWith('.') && f !== '.gitignore' && f !== '.git'))],
   ['engine khong tai code tu ben ngoai ve luc chay (khong co import() URL)', !/import\s*\(\s*['"`]https?:/.test(ALL.map(codeOf).join(''))]
 ];
 for (const [label, cond] of STRUCT) check(label, cond);

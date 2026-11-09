@@ -1,7 +1,8 @@
 // Test THAT background.js + offscreen.js trong Node, gia lap moi rang buoc cua trinh duyet.
-// Tai sao can: Edge 155 khong cap chrome.storage cho offscreen document, nen moi thu luu tru
-// phai di qua service worker. Hai file nay la hai context khac nhau -> phai noi chung bang
-// mot message bus moi test duoc, va offscreen duoc mo phong ma KHONG co chrome.storage (gap that).
+// Tai sao can: khong noi nao ngoai background duoc cham chrome.storage (ca Edge 155 — offscreen
+// document khong co, ca Firefox — bang callP callback). Hai file nay la hai context khac nhau
+// -> phai noi chung bang mot message bus moi test duoc, va offscreen duoc mo phong ma KHONG co
+// chrome.storage (gap that).
 // Dung: node tools/offscreen-test.mjs [--slow]
 
 import fs from 'node:fs';
@@ -70,7 +71,8 @@ const swChrome = {
       content_scripts: [{ matches: ['*://uukanshu.cc/*', '*://*.uukanshu.cc/*', '*://www.piaotia.com/*', '*://piaotia.com/*'] }]
     }),
     onInstalled: { addListener() {} },
-    onStartup: { addListener() {} }
+    onStartup: { addListener() {} },
+    onConnect: { addListener() {} }
   },
   storage: {
     local: {
@@ -156,7 +158,7 @@ const check = (label, cond, detail) => {
 };
 
 check('offscreen toi duoc "ready" du khong co chrome.storage', st && st.state === 'ready', st && st.message);
-check('engine lay settings TU SERVICE WORKER', st && st.settingsSource === 'service-worker', st && st.settingsSource);
+check('engine lay settings TU BACKGROUND', st && st.settingsSource === 'background', st && st.settingsSource);
 
 // firstMeaning = false trong store -> "她" phai tra moi nghia cua dict gộp ("Nàng/他"), khong phai "Nàng"
 const tr = await ask({ type: 'vp:translate', texts: ['她', '這是系統', '第三章'] });

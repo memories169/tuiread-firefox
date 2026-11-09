@@ -1,10 +1,12 @@
-// Noi engine + tu dien song: mot renderer rieng (offscreen document),
-// khong nam trong heap cua tab va khong bi kill nhu service worker.
+// Noi engine + tu dien song: mot page extension rieng (offscreen.html):
+//   - Firefox: iframe an chen vao background page (khong co chrome.offscreen) — xem background.js.
+//   - Chrome/Edge: offscreen document qua chrome.offscreen — xem background.js.
+// Khong nam trong heap cua tab, khong bi kill nhu service worker/event page khi dang doc.
 //
 // KIEN TRUC: file nay TUYET DOI khong cham chrome.storage. Edge 155 khong cap
 // chrome.storage (kem tabs/offscreen/runtime.getManifest) cho offscreen document - da do
 // bang probe, xem README "Su co hay gap". Moi doc/ghi luu tru di qua background.js
-// bang chrome.runtime.sendMessage, thu van chay duoc trong offscreen.
+// bang chrome.runtime.sendMessage, thu van chay duoc trong engine page.
 
 import { decode, FILES, parseDict, parseDictBuffer, parseT2S, createRuleEngine, createEngine } from './engine/index.js';
 import { maxKeyLength } from './engine/dict.js';
@@ -26,7 +28,7 @@ function noteEvent(text) {
   if (recentEvents.length > 15) recentEvents.shift();
 }
 
-// Layer override (từ điển vá của user): nạp từ service worker lúc boot, cập nhật qua vp:overrides.
+// Layer override (từ điển vá của user): nạp từ background lúc boot, cập nhật qua vp:overrides.
 let overridesMap = new Map();
 let overridesVersion = 0;
 let supplementHash = '';
@@ -50,8 +52,8 @@ const ENGINE_KEYS = ['firstMeaning', 'skipParticles', 'useRules', 'useNames'];
 
 const CAN_ASK_SW = !!(typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function');
 
-// Goi service worker, co tran: SW bi kill sau 30s idle la dung thoi quy cua MV3,
-// va SW ngu khong duoc phep lam offscreen treo.
+// Goi background, co tran: event page/SW bi unload sau khi idle la dung thoi quy cua MV3,
+// va background ngu khong duoc phep lam engine page treo.
 function askSW(message, timeoutMs = 5000) {
   if (!CAN_ASK_SW) return Promise.resolve(null);
   return new Promise(resolve => {
@@ -129,8 +131,8 @@ function fnv1a(text) {
   return hash.toString(36);
 }
 
-// Settings duoc cache sau lan hoi service worker thanh cong, de lan sau van chay duoc
-// neu SW ngu ma ta kip danh thuc.
+// Settings duoc cache sau lan hoi background thanh cong, de lan sau van chay duoc
+// neu background ngu ma ta kip danh thuc.
 let settingsCache = {};
 
 function sameEngineSettings(a, b) {
@@ -195,8 +197,8 @@ async function rebuild(reason) {
     bytes: { vp: DATA.vpBytes, names: DATA.namesBytes, supplement: DATA.supplementBytes },
     cache: cacheStats(),
     overrides: { count: overridesMap.size, version: overridesVersion },
-    settingsSource: fromWorker ? 'service-worker' : 'cache/mac-dinh',
-    warning: fromWorker ? null : 'Service worker không trả lời — engine dùng settings cache hoặc mặc định'
+    settingsSource: fromWorker ? 'background' : 'cache/mac-dinh',
+    warning: fromWorker ? null : 'Background không trả lời — engine dùng settings cache hoặc mặc định'
   });
   return engine;
 }

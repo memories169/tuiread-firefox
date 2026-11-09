@@ -16,6 +16,23 @@ function ask(message) {
   });
 }
 
+// Gọi API extension bằng callback — Firefox 128 không trả promise từ chrome.* (chỉ browser.*).
+// Callback là giao diện gốc của cả hai; mock trong test trả Promise (thenable) vẫn chạy.
+function callP(target, method, ...args) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (finish, value) => { if (!settled) { settled = true; finish(value); } };
+    let ret;
+    try {
+      ret = target[method](...args, value => {
+        const err = chrome.runtime.lastError;
+        if (err) done(reject, new Error(err.message)); else done(resolve, value);
+      });
+    } catch (err) { done(reject, err); return; }
+    if (ret && typeof ret.then === 'function') ret.then(v => done(resolve, v), e => done(reject, e));
+  });
+}
+
 function toPage(message) {
   return new Promise(resolve => {
     if (!tab || tab.id === undefined) return resolve({ ok: false, error: 'khong co tab' });
@@ -26,7 +43,7 @@ function toPage(message) {
   });
 }
 
-// Moi luu tru di qua service worker (background.js) - xem ghi chu trong file do.
+// Moi luu tru di qua background (event page / service worker) - xem ghi chu trong file do.
 async function storeGet(keys) {
   const got = await ask({ type: 'vp:get-settings' });
   if (!got || !got.ok) return {};
@@ -49,7 +66,7 @@ function renderToggle() {
 }
 
 async function refresh() {
-  [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  [tab] = (await callP(chrome.tabs, 'query', { active: true, currentWindow: true })) || [];
   hostName = hostnameOf((tab && tab.url) || '');
   $('host').textContent = hostName || '(không xác định)';
   if (hostName && !$('newHost').value) $('newHost').value = hostName;   // điền sẵn cho nút Thêm
@@ -65,7 +82,7 @@ async function refresh() {
     const notResponding = !status || (!status.state && !status.message);
     if (notResponding) await ask({ type: 'vp:ensure' });
     const line = notResponding
-      ? 'Engine: offscreen document không trả lời (nó chưa được tạo hoặc đã chết)\nĐã yêu cầu tạo lại - bấm "Nạp lại từ điển" nếu vẫn không được'
+      ? 'Engine: engine page không trả lời (background chưa tải trang engine)\nĐã yêu cầu tạo lại — bấm "Nạp lại từ điển" nếu vẫn không được\nXem lỗi: about:debugging → TuiRead → “Inspect” / About Firefox → Settings → extension'
       : `Engine: ${(status.message || 'chưa phản hồi')}` +
         (typeof status.progress === 'number' ? ` — ${Math.round(status.progress * 100)}%` : '') +
         (status.state === 'error' ? '' : '\nVẫn đang nạp, popup sẽ tự cập nhật.');
@@ -92,11 +109,11 @@ function schedulePoll() {
 
 $('reload').addEventListener('click', async () => {
   renderStatus('Đang nạp lại từ điển...');
-  await ask({ type: 'vp:ensure' });            // bao dam offscreen document ton tai
+  await ask({ type: 'vp:ensure' });            // dam bao engine page (iframe/offscreen) ton tai
   const resp = await ask({ type: 'vp:reload' });
   if (resp && resp.ok) refresh();
-  else renderStatus('Không nạp lại được: ' + ((resp && resp.error) || 'offscreen document không trả lời') +
-    '\nHãy mở chrome://extensions → "Inspect views: offscreen.html" để xem lỗi, hoặc tắt/bật lại extension.');
+  else renderStatus('Không nạp lại được: ' + ((resp && resp.error) || 'engine page không trả lời') +
+    '\nHãy mở about:debugging → This Firefox → “Inspect” của TuiRead (hoặc Tắt/Bật lại extension).');
 });
 
 $('toggle').addEventListener('click', async () => {
@@ -153,11 +170,14 @@ function originsFor(host) {
 // Vừa thêm xong thì bơm script ngay vào tab hiện tại nếu đang đứng trên site đó — không cần F5.
 async function injectIntoCurrentTab(host) {
   if (!host) return;
-  const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [t] = (await callP(chrome.tabs, 'query', { active: true, currentWindow: true })) || [];
   if (!t || hostnameOf(t.url) !== host) return;
   try {
-    await chrome.scripting.insertCSS({ target: { tabId: t.id }, files: ['styles/content.css'] });
-    await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['content.js'] });
+    // Đường dẫn bắt đầu bằng "/" = tuyệt đối tính từ gốc extension. Khác Chrome: Firefox resolve
+    // URL tương đối trong inject CSS/JS theo TRANG HIỆN TẠI (MDN Chrome incompatibilities) -> nếu
+    // thiếu "/" thì Firefox sẽ tìm sai đường dẫn và bỏ qua khi bơm CSS.
+    await callP(chrome.scripting, 'insertCSS', { target: { tabId: t.id }, files: ['/styles/content.css'] });
+    await callP(chrome.scripting, 'executeScript', { target: { tabId: t.id }, files: ['/content.js'] });
   } catch { /* tab hệ thống/đã inject — bỏ qua, lần tải sau tự chạy */ }
 }
 
@@ -196,7 +216,11 @@ $('addSite').addEventListener('click', async () => {
   addMsg('Đang xin quyền cho ' + host + '…');
   let granted = false;
   try {
-    granted = await chrome.permissions.request({ origins: originsFor(host) });
+    // chrome.permissions.request: GỌI CÓ CALLBACK (giao diện gốc của cả Chrome lẫn Firefox).
+    // Nếu không có callback, Firefox cũ trả undefined (chưa có promise trong chrome.*) ->
+    // grant bị coi như từ chối dù user đã bấm "Cho phép". callP bọc callback + vẫn đọc được
+    // promise nếu API trả về (mock test / Firefox mới).
+    granted = await callP(chrome.permissions, 'request', { origins: originsFor(host) });
   } catch (e) {
     addMsg('Không xin được quyền: ' + e.message, true);
     return;

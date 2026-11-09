@@ -1,4 +1,4 @@
-// Cache kết quả dịch trong IndexedDB của offscreen document.
+// Cache kết quả dịch trong IndexedDB của engine page.
 //
 // Vì sao cache: mỗi lần mở/reload chương đều gửi lại toàn bộ text node cho engine. Dịch
 // nhanh (~40ms/chương) nhưng khi trình duyệt vừa mở, từ điển 34MB chưa nạp xong (~2-5s)
@@ -7,7 +7,7 @@
 //
 // Vì sao IndexedDB mà không phải chrome.storage: chrome.storage.local chỉ 10MB, không đủ
 // cho hàng chục nghìn bản dịch; `unlimitedStorage` đã có sẵn trong manifest. IndexedDB là
-// API web chuẩn (không thuộc chrome.* bị Edge cắt trong offscreen — probe README), nếu
+// API web chuẩn (không thuộc chrome.* bị Edge cắt trong engine page — probe README), nếu
 // trình duyệt nào vẫn chặn thì tự rơi về Map trong RAM: mất cache khi restart, không mất
 // tính năng dịch.
 
