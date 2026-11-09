@@ -1,0 +1,37 @@
+# Supplement dict — lớp bổ trợ giữa dict gốc và bản vá của user (2026-11-07)
+# Thứ tự tra: user override > Supplement > rule/Names/VP/PA.
+# Mỗi dòng: Hán(simplified)=nghĩa1/nghĩa2/... (nghĩa hay nhất TRƯỚC, giống quy ước VietPhrase).
+# Nguồn: đối chiếu trực diện chương 1 STV (sangtacviet.app/truyen/uukanshu/1/247409/125721)
+# — chỉ nhận mục đo được chênh rõ và khẳng định được nghĩa tốt hơn; không chép file dict STV.
+#
+# == Sửa order/value xấu còn sót sau merge ==
+明白了=hiểu rồi/đã rõ
+都没=đều không/chưa từng
+在网上=ở trên mạng/trên mạng
+让人=để cho người ta/khiến người ta/làm cho người ta
+一款=một cái/một loại
+主打=át chủ bài/chủ đả
+节目组=tổ chương trình/tiết mục tổ
+蜘蛛人=Spider Man/người nhện
+整活=làm trò
+正当红=đang nổi tiếng/đang hot
+唢呐=kèn suona/kèn
+人气值=điểm nhân khí/giá trị nhân khí
+我记得=ta nhớ/ta nhớ được
+我哥=anh ta/anh trai ta
+丧=tang/mất
+臭手=tay thúi
+比如说=tỉ như nói/ví dụ như
+看吧=xem đi/nhìn đi
+微博上=trên Weibo/bên trên Weibo
+定好=định xong/hẹn xong
+# == Gỡ format rác ':' còn sót trong dict cộng đồng (đầu vào 原 có {a:b} hoặc a:b) ==
+当=làm/khi/đem/đương/lúc/coi là/nên/đáng
+点=điểm/chút/giờ
+一顿=một trận/một bữa/dừng lại/cho ăn
+# == Value đầu là tiếng Anh/lai ký trong dict cộng đồng — đổi sang Việt ==
+社死=xã hội tính tử vong/cái chết xã hội/social death
+麦克风=mic/micro
+
+# == Chốt giá trị tốt đã đo, chống bị đè khi chạy lại build-dict-merge ==
+和地球相似=tương tự với địa cầu

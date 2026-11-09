@@ -1,0 +1,20 @@
+{
+  "name": "tuiread-tools",
+  "private": true,
+  "type": "module",
+  "description": "Chi dung cho Node tooling (tools/*.mjs). Chrome doc manifest.json, khong doc file nay.",
+  "scripts": {
+    "check": "node tools/check.mjs",
+    "check:fast": "node tools/check.mjs --fast",
+    "dom": "node tools/dom-test.mjs --restore",
+    "offscreen": "node tools/offscreen-test.mjs",
+    "browser": "node tools/browser-check.mjs",
+    "audit": "node tools/security-audit.mjs",
+    "browser:han": "node tools/browser-check.mjs --mode=vi-han",
+    "measure": "node tools/measure.mjs",
+    "diag": "node tools/diag.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^31.0.0"
+  }
+}

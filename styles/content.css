@@ -1,0 +1,119 @@
+.vp-orig {
+  display: none;
+}
+
+body.vp-mode-han .vp-orig {
+  display: block;
+  color: #8b8b8b;
+  font-size: 0.86em;
+  line-height: 1.5;
+  opacity: 0.8;
+  margin: 0.15em 0 0.9em;
+  border-left: 2px solid rgba(140, 140, 140, 0.35);
+  padding-left: 0.6em;
+  white-space: pre-wrap;
+}
+
+/* Nhận diện TuiRead: mực teal + giấy ấm + chu sa/hổ phách làm điểm nhấn.
+   Giữ nguyên tên lớp .vp-* (content.js, harness và browser-check đều dựa vào chúng). */
+.vp-status-chip {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2147483647;
+  background: linear-gradient(160deg, #12474b, #0b2b2f);
+  color: #f7f1e5;
+  font: 12px/1.4 system-ui, sans-serif;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border-left: 3px solid #f2b33d;
+  box-shadow: 0 3px 12px rgba(7, 30, 34, 0.35);
+  opacity: 0.95;
+}
+
+/* Card sửa nghĩa (tokenMap click-to-edit): bấm vào cụm đã dịch để vá từ điển ngay trên trang */
+.vp-pop {
+  position: fixed;
+  z-index: 2147483646;
+  max-width: 340px;
+  background: #fffdf7;
+  color: #0b2b2f;
+  border: 1px solid #d8ccb4;
+  border-top: 3px solid #e4572e;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(7, 30, 34, 0.3);
+  padding: 10px 12px;
+  font: 13px/1.5 system-ui, sans-serif;
+}
+
+.vp-pop-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.vp-pop-han {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.vp-pop-kind {
+  color: #6d7a78;
+  font-size: 11px;
+}
+
+.vp-pop-cur {
+  color: #8a6d1a;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.vp-pop-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 7px;
+  margin: 2px 0 8px;
+  font: inherit;
+  color: #0b2b2f;
+  background: #fff;
+  border: 1px solid #d8ccb4;
+  border-radius: 6px;
+}
+
+.vp-pop-input:focus {
+  outline: 2px solid #f2b33d;
+  outline-offset: 1px;
+}
+
+.vp-pop-btns button {
+  font: inherit;
+  padding: 4px 12px;
+  margin-right: 6px;
+  border: 1px solid #d8ccb4;
+  border-radius: 6px;
+  background: #f7f1e5;
+  color: #0b2b2f;
+  cursor: pointer;
+}
+
+.vp-pop-btns button:first-child {
+  background: #e4572e;
+  border-color: #e4572e;
+  color: #fff;
+  font-weight: 600;
+}
+
+.vp-pop-btns button:hover {
+  background: #efe6d4;
+}
+
+.vp-pop-btns button:first-child:hover {
+  background: #c9481f;
+}
+
+.vp-pop-hint {
+  color: #6d7a78;
+  font-size: 11px;
+  margin-top: 6px;
+}

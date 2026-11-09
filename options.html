@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>TuiRead - Tùy chọn</title>
+  <style>
+    :root {
+      --ink: #0b2b2f;
+      --ink-2: #12474b;
+      --paper: #f7f1e5;
+      --paper-2: #efe6d4;
+      --card: #fffdf7;
+      --line: #d8ccb4;
+      --vermilion: #e4572e;
+      --amber: #f2b33d;
+      --jade: #2e9e7b;
+      --muted: #6d7a78;
+    }
+    * { scrollbar-width: thin; scrollbar-color: var(--ink-2) var(--paper-2); }
+    *::-webkit-scrollbar { width: 10px; height: 10px; }
+    *::-webkit-scrollbar-track { background: var(--paper-2); }
+    *::-webkit-scrollbar-thumb { background: var(--ink-2); border-radius: 5px; border: 2px solid var(--paper-2); }
+    *::-webkit-scrollbar-thumb:hover { background: var(--vermilion); }
+    html {
+      background:
+        radial-gradient(60% 340px at 85% -60px, rgba(46, 158, 123, 0.16), transparent 70%),
+        radial-gradient(50% 300px at 0% 0%, rgba(242, 179, 61, 0.12), transparent 70%),
+        linear-gradient(180deg, var(--paper), var(--paper-2) 60%);
+      background-color: var(--paper-2);
+      min-height: 100%;
+    }
+    body {
+      font: 14px/1.6 system-ui, sans-serif; max-width: 820px; margin: 0 auto; padding: 0 16px 48px;
+      color: var(--ink);
+    }
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 22px 0 14px; margin-bottom: 8px;
+      border-bottom: 2px solid var(--ink);
+    }
+    header img { width: 44px; height: 44px; border-radius: 10px; box-shadow: 0 2px 8px rgba(11, 43, 47, 0.3); }
+    h1 { font-size: 22px; margin: 0; letter-spacing: 0.2px; }
+    h1 span { color: var(--vermilion); }
+    .tag { margin: 0; font-size: 12px; color: var(--muted); }
+    h2 { font-size: 16px; margin-top: 28px; }
+    fieldset {
+      border: 1px solid var(--line); border-radius: 10px; margin: 0 0 16px; padding: 12px 16px;
+      background: var(--card); box-shadow: 0 1px 0 rgba(11, 43, 47, 0.06);
+    }
+    legend { font-weight: 700; padding: 0 6px; color: var(--ink-2); }
+    label { display: block; margin: 6px 0; }
+    input[type="checkbox"] { accent-color: var(--jade); width: 15px; height: 15px; vertical-align: -2px; }
+    select, textarea, input[type="text"], input[type="url"] {
+      font: inherit; color: var(--ink); background: #fff;
+      border: 1px solid var(--line); border-radius: 6px;
+    }
+    textarea { width: 100%; box-sizing: border-box; min-height: 120px; padding: 8px; }
+    textarea:focus, select:focus, input:focus { outline: 2px solid var(--amber); outline-offset: 1px; border-color: var(--ink-2); }
+    button {
+      font: inherit; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px;
+      background: var(--paper); color: var(--ink); cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, transform 0.06s;
+    }
+    button:hover { background: var(--paper-2); border-color: var(--ink-2); }
+    button:active { transform: translateY(1px); }
+    button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+    #save, #ovApply, #siteSave { background: var(--ink-2); border-color: var(--ink-2); color: #fff; font-weight: 600; }
+    #save:hover, #ovApply:hover, #siteSave:hover { background: var(--ink); border-color: var(--ink); }
+    #run { background: var(--vermilion); border-color: var(--vermilion); color: #fff; font-weight: 600; }
+    #run:hover { background: #c9481f; border-color: #c9481f; }
+    #out {
+      white-space: pre-wrap; background: linear-gradient(160deg, var(--ink-2), var(--ink)); color: var(--paper);
+      border-radius: 8px; padding: 12px; margin-top: 8px; border-left: 3px solid var(--amber);
+    }
+    #msg { color: var(--jade); margin-left: 10px; font-weight: 600; }
+    #ovMsg, #siteMsg { font-weight: 600; }
+    .urlrow {
+      margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px;
+      background: rgba(46, 158, 123, 0.06);
+    }
+    .urlrow > label { font-weight: 600; color: var(--ink-2); margin: 0 0 6px; }
+    .urlbar { display: flex; gap: 8px; }
+    .urlbar input { flex: 1; min-width: 0; padding: 7px 9px; }
+    #ovUrlLoad { background: var(--jade); border-color: var(--jade); color: #fff; font-weight: 600; white-space: nowrap; }
+    #ovUrlLoad:hover { background: #257f63; border-color: #257f63; }
+    #ovUrlLoad:disabled { opacity: 0.6; cursor: progress; transform: none; }
+    .urlhint { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+    #urlMsg { font-weight: 600; color: var(--jade); margin: 6px 0 0; }
+    #urlMsg.err { color: #b3261e; }
+    #urlMsg:empty { display: none; }
+    code { background: var(--paper-2); border: 1px solid var(--line); padding: 1px 4px; border-radius: 4px; color: var(--ink-2); }
+    p { margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon48.png" alt="">
+    <div>
+      <h1>Tui<span>Read</span> - Tùy chọn</h1>
+      <p class="tag">từ điển VietPhrase · bản vá của bạn · mọi thứ chạy local</p>
+    </div>
+  </header>
+
+  <fieldset>
+    <legend>Hiển thị</legend>
+    <label>Kiểu
+      <select id="mode">
+        <option value="vi">Chỉ tiếng Việt (convert)</option>
+        <option value="vi-han">Việt + gốc Hán bên dưới</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="translateChrome"> Dịch cả menu, header, footer của trang (thân truyện vẫn dịch trước)</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Cách chọn nghĩa</legend>
+    <label><input type="checkbox" id="firstMeaning"> Chỉ lấy nghĩa đầu trước dấu <code>/</code> (tắt = giữ tất cả nghĩa)</label>
+    <label><input type="checkbox" id="skipParticles"> Bỏ chữ thừa <code>的 / 了 / 着 / 著</code> khi không khớp được cụm từ</label>
+    <label><input type="checkbox" id="useRules"> Bật rule engine (số, giờ, ngày, đơn vị)</label>
+    <label><input type="checkbox" id="useNames"> Bật nhận diện tên riêng (Names)</label>
+    <p><button id="save">Lưu</button><span id="msg"></span></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Selector khu vực truyện theo trang (thêm site mới không cần sửa code)</legend>
+    <p>Mỗi dòng một site, dạng <code>tên-miền=selector CSS</code> (nhiều selector cách nhau bằng dấu phẩy,
+    thử lần lượt). Site không có dòng → engine tự chọn <strong>khối chứa nhiều chữ Hán nhất</strong> làm thân truyện.
+    Lưu xong bấm "Dịch lại trang" ở popup để áp dụng.</p>
+    <textarea id="siteSel" placeholder="uukanshu.cc=.readcotent, #content, article"></textarea>
+    <p><button id="siteSave">Lưu selector</button><span id="siteMsg"></span></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Từ điển của tôi (vá nghĩa sai mà không đụng file từ điển gốc)</legend>
+    <label><input type="checkbox" id="allowClickEdit"> Bấm vào một cụm đã dịch trên trang để xem Hán gốc và sửa nghĩa</label>
+    <p id="ovInfo">Đang tải…</p>
+    <textarea id="ovText" placeholder="Mỗi dòng một mục, cùng định dạng từ điển:&#10;搜索=Tìm tòi&#10;林動=Võ Động"></textarea>
+    <p>
+      <button id="ovApply">Lưu ngay (thay toàn bộ bằng ô trên)</button>
+      <button id="ovExport">Xuất file .txt</button>
+      <button id="ovImport">Nhập file .txt</button>
+      <input type="file" id="ovFile" accept=".txt,text/plain" style="display:none">
+      <span id="ovMsg"></span>
+    </p>
+    <div class="urlrow">
+      <label for="ovUrl">Hoặc tải bản vá từ URL (file .txt cá nhân hóa của bạn, ví dụ raw GitHub)</label>
+      <div class="urlbar">
+        <input type="url" id="ovUrl" spellcheck="false"
+          placeholder="https://raw.githubusercontent.com/ban/tu-dien/main/tuiread-overrides.txt">
+        <button id="ovUrlLoad">Tải từ URL</button>
+      </div>
+      <p class="urlhint">Tải từ URL sẽ <strong>thay toàn bộ</strong> bản vá hiện tại (giống Nhập file).
+      URL tải thành công được nhớ cho lần sau. Chỉ đọc file (GET) — không gửi dữ liệu của bạn lên mạng.</p>
+      <p id="urlMsg" role="status"></p>
+    </div>
+    <p>Ô trên <strong>tự lưu</strong> khi bạn ngừng gõ ~1 giây, và <strong>tự cập nhật</strong> khi bạn vá
+    từ card trên trang truyện — không phải bấm tay. Mẹo: vá <strong>cụm tên đầy đủ</strong>
+    (<code>秦江=Tần Giang</code>), đừng vá một chữ (<code>江=Giang</code> sẽ hỏng cả 江南/长江).</p>
+    <p>Mẹo: file xuất ra dùng đúng định dạng <code>Hán=nghĩa</code> của từ điển — muốn gộp hẳn vào
+    <code>VietPhrase.txt</code> thì chỉ cần chép nội dung đó vào cuối file (khi tự chứa từ điển riêng).</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Thử engine trên văn bản dán</legend>
+    <textarea id="src" placeholder="Dán một đoạn tiếng Trung vào đây...">他没想到对方竟然会如此干脆利落，心中不由得一动，目光落在那枚古朴的戒指上。</textarea>
+    <p><button id="run">Convert</button></p>
+    <div id="out">-</div>
+  </fieldset>
+
+  <script src="options.js"></script>
+</body>
+</html>

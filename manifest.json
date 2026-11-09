@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "TuiRead",
+  "version": "0.2.0",
+  "description": "Đọc raw truyện tiếng Trung",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": ["storage", "offscreen", "unlimitedStorage", "scripting"],
+  "optional_host_permissions": ["*://*/*"],
+  "host_permissions": [
+    "*://uukanshu.cc/*",
+    "*://*.uukanshu.cc/*",
+    "*://www.piaotia.com/*",
+    "*://piaotia.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://uukanshu.cc/*",
+        "*://*.uukanshu.cc/*",
+        "*://www.piaotia.com/*",
+        "*://piaotia.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TuiRead",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options.html"
+}

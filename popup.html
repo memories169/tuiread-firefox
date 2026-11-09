@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --ink: #0b2b2f;
+      --ink-2: #12474b;
+      --paper: #f7f1e5;
+      --paper-2: #efe6d4;
+      --line: #d8ccb4;
+      --vermilion: #e4572e;
+      --amber: #f2b33d;
+      --jade: #2e9e7b;
+      --muted: #6d7a78;
+    }
+    * { scrollbar-width: thin; scrollbar-color: var(--ink-2) var(--paper-2); }
+    *::-webkit-scrollbar { width: 8px; height: 8px; }
+    *::-webkit-scrollbar-track { background: var(--paper-2); }
+    *::-webkit-scrollbar-thumb { background: var(--ink-2); border-radius: 4px; border: 2px solid var(--paper-2); }
+    *::-webkit-scrollbar-thumb:hover { background: var(--vermilion); }
+    body {
+      width: 320px; margin: 0; padding: 12px;
+      font: 13px/1.5 system-ui, sans-serif; color: var(--ink);
+      background:
+        radial-gradient(120% 70% at 100% 0%, rgba(46, 158, 123, 0.14), transparent 60%),
+        linear-gradient(180deg, var(--paper), var(--paper-2));
+    }
+    header { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+    header img { width: 26px; height: 26px; border-radius: 6px; box-shadow: 0 1px 4px rgba(11, 43, 47, 0.35); }
+    h1 { font-size: 16px; margin: 0; letter-spacing: 0.2px; }
+    h1 span { color: var(--vermilion); }
+    .tag { font-size: 10px; color: var(--muted); margin: -2px 0 0; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+    #host { font-weight: 600; word-break: break-all; }
+    button {
+      font: inherit; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px;
+      background: #fffdf7; color: var(--ink); cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, transform 0.06s;
+    }
+    button:hover { background: var(--paper); border-color: var(--ink-2); }
+    button:active { transform: translateY(1px); }
+    button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+    #toggle { border-radius: 999px; padding: 4px 12px; font-weight: 600; }
+    #toggle[data-on="true"] { background: var(--jade); border-color: var(--jade); color: #fff; }
+    #toggle[data-on="false"] { background: var(--paper-2); color: var(--muted); }
+    select { font: inherit; padding: 3px; border: 1px solid var(--line); border-radius: 6px; background: #fffdf7; color: var(--ink); }
+    #status {
+      font-size: 11px; color: var(--paper); background: linear-gradient(160deg, var(--ink-2), var(--ink));
+      border-radius: 8px; padding: 8px 9px; white-space: pre-wrap;
+      border-left: 3px solid var(--amber);
+    }
+    .err { color: #ffd9cd; border-left-color: var(--vermilion); }
+    #addRow { display: flex; gap: 6px; margin: 8px 0 4px; }
+    #newHost {
+      flex: 1; min-width: 0; font: inherit; padding: 4px 7px;
+      border: 1px solid var(--line); border-radius: 6px; box-sizing: border-box;
+      background: #fffdf7; color: var(--ink);
+    }
+    #addSite { background: var(--vermilion); border-color: var(--vermilion); color: #fff; font-weight: 600; }
+    #addSite:hover { background: #c9481f; border-color: #c9481f; }
+    .hint { font-size: 11px; color: var(--muted); margin: 2px 0 8px; }
+    #siteList { font-size: 12px; line-height: 1.9; word-break: break-all; }
+    #siteList .chip {
+      display: inline-flex; align-items: center; gap: 4px; background: #fffdf7;
+      border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; margin: 0 4px 4px 0;
+    }
+    #siteList .chip.def { background: rgba(46, 158, 123, 0.14); border-color: rgba(46, 158, 123, 0.5); }
+    #siteList .chip button { font-size: 11px; padding: 0 5px; border: none; background: none; color: var(--vermilion); cursor: pointer; }
+    #addMsg { font-size: 11px; color: var(--ink-2); }
+    #addMsg.err { color: var(--vermilion); }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon32.png" alt="">
+    <div>
+      <h1>Tui<span>Read</span></h1>
+      <p class="tag">convert Trung → Việt · chạy local</p>
+    </div>
+  </header>
+  <div class="row"><span id="host">...</span><button id="toggle">Bật</button></div>
+  <div class="row">
+    <label for="mode">Kiểu hiển thị</label>
+    <select id="mode">
+      <option value="vi">Chỉ tiếng Việt</option>
+      <option value="vi-han">Việt + gốc Hán bên dưới</option>
+    </select>
+  </div>
+  <div class="row">
+    <button id="retranslate">Dịch lại trang</button>
+    <button id="reload">Nạp lại từ điển</button>
+    <button id="options">Tùy chọn</button>
+  </div>
+  <div id="addRow">
+    <input id="newHost" type="text" placeholder="domain hoặc URL truyện khác">
+    <button id="addSite">Thêm</button>
+  </div>
+  <div class="hint">Đang đứng trên trang lạ thì bấm Thêm luôn (đã điền sẵn). Chrome sẽ hỏi cho phép một lần.</div>
+  <div id="addMsg"></div>
+  <div id="siteList"></div>
+  <div id="status">Đang kiểm tra engine...</div>
+  <script src="popup.js"></script>
+</body>
+</html>
