@@ -358,15 +358,24 @@
   // text node ĐẦU TIÊN (chính là node gốc trong `originals`) hấp thụ lại toàn bộ chuỗi
   // -> originals/done vẫn đúng, restore() trả trang về nguyên trạng như chưa từng bọc.
   let selMark = null;
+  let selMarkBase = null;   // NODE GỐC (trong originals) — ghép lại thủ công, không mất
+  let selMarkAfter = null;  // text node sau mark (phần đuôi)
 
   function clearHighlight() {
-    if (selMark && selMark.parentNode) {
+    if (selMarkBase && selMarkBase.parentNode && selMark && selMark.parentNode) {
+      // Ghép THỦ CÔNG về node gốc: orig = [0..start] + markText + [end..len].
+      // KHÔNG dùng parent.normalize(): nó XOÁ text node rỗng — khi vùng chọn chạm
+      // đầu/cuối chuỗi, node gốc rỗng bị xoá -> mất khỏi `originals` -> click sau
+      // Esc không còn mở card (bug "mở rộng rồi Esc rồi click lại").
       const parent = selMark.parentNode;
-      const text = selMark.textContent;
-      selMark.replaceWith(document.createTextNode(text));
-      parent.normalize();   // gộp [trước][token][sau] về đúng node gốc ban đầu
+      const start = selMarkBase.nodeValue.length;   // phần gốc hiện tại = [0..start]
+      const markText = selMark.textContent || '';
+      const afterLen = selMarkAfter ? selMarkAfter.nodeValue.length : 0;
+      selMarkBase.nodeValue = selMarkBase.nodeValue + markText + (selMarkAfter ? selMarkAfter.nodeValue : '');
+      selMark.remove();
+      if (selMarkAfter && selMarkAfter.parentNode) selMarkAfter.remove();
     }
-    selMark = null;
+    selMark = null; selMarkBase = null; selMarkAfter = null;
   }
 
   function showHighlightFor(node, start, end) {
@@ -385,6 +394,8 @@
       node.parentNode.insertBefore(mark, node.nextSibling);
       node.parentNode.insertBefore(afterNode, mark.nextSibling);
       selMark = mark;
+      selMarkBase = node;
+      selMarkAfter = afterNode;
     } catch { /* node đã đổi giữa chừng — bỏ qua */ }
   }
 
