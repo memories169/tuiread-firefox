@@ -15,7 +15,7 @@
   const inserted = new Set();    // span ban chen them (che do song ngu)
   const done = new WeakSet();
   let applying = false;
-  let settings = { mode: 'vi', firstMeaning: true, skipParticles: false, translateChrome: true, allowClickEdit: true };
+  let settings = { mode: 'vi', firstMeaning: false, skipParticles: false, translateChrome: true, allowClickEdit: true };
   let hostEnabled = true;
   let observer = null;
   let queue = new Set();

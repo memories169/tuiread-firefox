@@ -43,7 +43,7 @@ function autoUpperCase(text) {
 
 export function createEngine(dicts, settings = {}) {
   const opt = {
-    firstMeaning: true,
+    firstMeaning: false,   // mặc định HIỂN THỊ TẤT CẢ nghĩa (cách nhau '/') theo yêu cầu; options tắt được
     separator: '/',
     useRules: true,
     useNames: true,

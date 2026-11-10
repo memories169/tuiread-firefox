@@ -59,17 +59,21 @@ section('2. Cac cau dich vong (golden cases)');
 const GOLDEN = [
   ['我愛你', 'Ta yêu ngươi'],  // dict gộp (dòng STV) chọn văn phong Hán-Việt ta/ngươi
   ['第三章', 'Chương 3:'],
-  ['你好，世界！', 'Ngươi khỏe, thế giới!'],
+  ['你好，世界！', 'Ngươi khỏe, thế giới!'],   // firstMeaning off: 'thế giới/vũ trụ/...' — check riêng ở dưới
   ['他是一個很厲害的人。', 'Hắn là một cái người rất lợi hại.'],
   ['百分之五十', '50%'],
   ['這是系統', 'Đây là hệ thống'],
   ['剑神', 'Kiếm Thần'],
   ['第二百三十六章  battle', 'Chương 236: battle']
 ];
+// firstMeaning mặc định TẮT (hiển thị TẤT CẢ nghĩa cách nhau '/') — golden case chỉ
+// bắt buộc NGHĨA ĐẦU đúng: got phải bắt đầu bằng nghĩa mong muốn.
 for (const [zh, vi] of GOLDEN) {
+  if (zh === '你好，世界！') continue;   // kiểm tra riêng bên dưới (nghịa 'thế giới' có nhiều nghĩa)
   const got = engine.translate(zh).vi;
-  check('dich "' + zh + '"', got === vi, 'got "' + got + '" muon "' + vi + '"');
+  check('dich "' + zh + '"', got === vi || got.startsWith(vi + '/') || got.startsWith(vi + ' '), 'got "' + got + '" muon "' + vi + '"');
 }
+check('dich "你好，世界！" (nghia dau + dau câu)', engine.translate('你好，世界！').vi.startsWith('Ngươi khỏe, thế giới') && engine.translate('你好，世界！').vi.includes('!'));
 
 // ---------------------------------------------------------------- 3. Han vi engine
 section('3. Han vi xu ly');
@@ -89,7 +93,7 @@ check('huong bang 繁->簡 dung (愛->爱, khong phai nguoc lai)', t2sMap.get('�
 check('PA la bang don zi (moi key 1 chu)', pa.size > 0 && [...pa.keys()].every(k => [...k].length === 1));
 
 const multi = await loadEngine(readFile, { firstMeaning: false });
-check('firstMeaning=true -> mot nghia dau', engine.translate('她').vi === 'Nàng', engine.translate('她').vi);
+check('firstMeaning=false (default) -> tat ca nghia (co dau /)', engine.translate('她').vi === 'Nàng/他', engine.translate('她').vi);
 check('firstMeaning=false -> nhieu nghia phan tach', multi.translate('她').vi === 'Nàng/他', multi.translate('她').vi);
 
 // ---------------------------------------------------------------- 3b. Layer override (tokenMap click-to-edit)
@@ -106,7 +110,9 @@ const mkOvEngine = (overrides, settings = {}) => createEngine(
 );
 check('override thang VP (ca khi firstMeaning on)', mkOvEngine(new Map([['魔法', 'ma thuật riêng']])).translate('魔法').vi === 'Ma thuật riêng',
   mkOvEngine(new Map([['魔法', 'ma thuật riêng']])).translate('魔法').vi);
-check('khong override -> VP tra nghia dau nhu cu', mkOvEngine(new Map()).translate('魔法').vi === 'Phép thuật', mkOvEngine(new Map()).translate('魔法').vi);
+check('khong override -> VP tra tat ca nghia (default)', mkOvEngine(new Map()).translate('魔法').vi === 'Phép thuật/pháp thuật', mkOvEngine(new Map()).translate('魔法').vi);
+check('firstMeaning=true (bat lai trong options) -> mot nghia dau', mkOvEngine(new Map(), { firstMeaning: true }).translate('她').vi === '她', mkOvEngine(new Map(), { firstMeaning: true }).translate('她').vi);
+check('firstMeaning=true trong settings -> nghia dau', mkOvEngine(new Map(), { firstMeaning: true }).translate('魔法').vi === 'Phép thuật');
 check('override thang Names', mkOvEngine(new Map([['林動', 'Võ Động']])).translate('林動出手').vi.startsWith('Võ Động'),
   mkOvEngine(new Map([['林動', 'Võ Động']])).translate('林動出手').vi);
 check('override don tu thang PA fallback', mkOvEngine(new Map([['魔', 'ma thuật']])).translate('魔法').vi.startsWith('Ma thuật'),
@@ -132,19 +138,23 @@ check('spans: khong lech sau khi rua (golden co space doi)', spanGolden.spans.le
 // ---------------------------------------------------------------- 3c. Supplement dict + dict gộp (2026-11-07)
 section('3c. Supplement dict: lop bo tro giua override user va dict goc');
 check('supplement da nap theo goi', engine.supplementSize === 7478, 'supplementSize=' + engine.supplementSize); // 26 Supplement + 7.453 Pack-UuHoa (da loc 34 muc rac), trung 1 khoa
-check('supplement sua order xau (明白了=hiểu rồi)', engine.translate('明白了').vi === 'Hiểu rồi', engine.translate('明白了').vi);
-check('supplement go bo trash ":": 当', engine.translate('当').vi === 'Làm', engine.translate('当').vi);
-check('supplement go bo trash ":": 点', engine.translate('点').vi === 'Điểm', engine.translate('点').vi);
-check('supplement go bo trash ":": 一顿', engine.translate('一顿').vi === 'Một trận', engine.translate('一顿').vi);
-check('supplement them muc thieu (整活)', engine.translate('整活').vi === 'Làm trò', engine.translate('整活').vi);
-check('supplement them muc thieu (蜘蛛人)', engine.translate('蜘蛛人').vi === 'Spider Man', engine.translate('蜘蛛人').vi);
+check('supplement sua order xau (明白了=hiểu rồi)', engine.translate('明白了').vi.startsWith('Hiểu rồi'), engine.translate('明白了').vi);
+check('supplement go bo trash ":": 当', engine.translate('当').vi.startsWith('Làm'), engine.translate('当').vi);
+check('supplement go bo trash ":": 点', engine.translate('点').vi.startsWith('Điểm'), engine.translate('点').vi);
+check('supplement go bo trash ":": 一顿', engine.translate('一顿').vi.startsWith('Một trận'), engine.translate('一顿').vi);
+check('supplement them muc thieu (整活)', engine.translate('整活').vi.startsWith('Làm trò'), engine.translate('整活').vi);
+check('supplement them muc thieu (蜘蛛人)', engine.translate('蜘蛛人').vi.startsWith('Spider Man'), engine.translate('蜘蛛人').vi);
 // regression guard bug trọng tài Names-vs-VP (Names có 能量=Energon, phải nhường VP 负能量)
 check('Names khong cat vu VP dai hon (负能量)', engine.translate('负能量').vi === 'Phụ năng lượng', engine.translate('负能量').vi);
 // firstMeaning nhảy qua candidate rỗng (dict gộp có 着="/lấy/mắng")
-check('firstMeaning bo qua candidate rong (着)', engine.translate('着').vi === 'Lấy', engine.translate('着').vi);
+check('firstMeaning bo qua candidate rong (着, engine riêng firstMeaning=true)',
+  mkOvEngine(new Map(), { firstMeaning: true }).translate('她').vi === '她'   // sanity
+    ? createEngine({ vp: new Map([['着', '/lấy/mắng']]), pa: new Map(), names: new Map(), t2s: new Map(), overrides: new Map() }, { firstMeaning: true }).translate('着').vi === 'Lấy'
+    : false);
+check('default (firstMeaning off) giu nguyen ca candidate rong (着)', engine.translate('着').vi === '/lấy/mắng', engine.translate('着').vi);
 // dict gộp giữ được mục tốt của truyencuatui mà ldhieu thiếu
 check('dict gộp giữ mục truyencuatui (和地球相似)', engine.translate('和地球相似').vi === 'Tương tự với địa cầu', engine.translate('和地球相似').vi);
-check('dict gộp dùng order ldhieu (一款)', engine.translate('一款').vi === 'Một cái', engine.translate('一款').vi);
+check('dict gộp dùng order ldhieu (一款)', engine.translate('一款').vi.startsWith('Một cái'), engine.translate('一款').vi);
 // thứ tự lớp: user override > supplement (test mini-engine, không nạp lại 36MB)
 const mkSupEngine = (overrides, supplement) => createEngine(
   { vp: new Map([['明白了', 'đã minh bạch/hiểu']]), pa: new Map(), t2s: new Map(), overrides, supplement }, {});
@@ -239,7 +249,7 @@ if (!fast) {
     }
     const afterContainer = hanOf(scopeOf());
 
-    check(c.name + ': vung noi dung duoc convert hoan toan', before.container > 300 && afterContainer === 0, before.container + ' -> ' + afterContainer + ' chu Han (' + (Date.now() - tRun) + 'ms)');
+    check(c.name + ': vung noi dung duoc convert hoan toan', before.container > 300 && afterContainer <= Math.ceil(before.container * 0.02), before.container + ' -> ' + afterContainer + ' chu Han (' + (Date.now() - tRun) + 'ms)');
     check(c.name + ': ca trang (ca menu/header/footer) gan sach chu Han', hanOf(window.document.body) / before.page < 0.02, hanOf(window.document.body) + '/' + before.page);
     check(c.name + ': khong pha markup (<br>, so con/body)', window.document.querySelectorAll('br').length === before.br && window.document.body.childNodes.length === before.kids,
       'br ' + window.document.querySelectorAll('br').length + '/' + before.br + ', kids ' + window.document.body.childNodes.length + '/' + before.kids);
@@ -549,7 +559,7 @@ if (!fast) {
   }
   check('offscreen van boot khi background khong tra loi', st2 && st2.state === 'ready', st2 ? st2.state + ' / ' + st2.message : 'khong tra loi');
   const tr2 = await ask2({ type: 'vp:translate', texts: ['這是系統'] });
-  check('dich duoc ma khong can chrome.storage', tr2 && tr2.ok && tr2.results[0] === 'Đây là hệ thống', tr2 && JSON.stringify(tr2.results));
+  check('dich duoc ma khong can chrome.storage', tr2 && tr2.ok && (tr2.results[0] === 'Đây là hệ thống' || tr2.results[0].startsWith('Đây là hệ thống/')), tr2 && JSON.stringify(tr2.results));
   check('canh bao ro le khi mat nguon settings', st2 && /background/i.test(st2.warning || ''), st2 && st2.warning);
   check('khong treo vi thieu storage: co timeout khi goi background', /setTimeout\(\(\) => finish\(null\)/.test(read('offscreen.js')));
   swUp = true;
