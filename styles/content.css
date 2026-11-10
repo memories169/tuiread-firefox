@@ -128,6 +128,30 @@ body.vp-mode-han .vp-orig {
   box-shadow: 0 0 0 1px rgba(18, 71, 75, 0.45); /* viền cùng tông để nổi trên nền sáng */
 }
 
+
+/* F2: chip từng chữ Hán trong card sửa — bấm để thu vùng chọn */
+.vp-chip {
+  font: inherit;
+  font-size: 15px;
+  padding: 1px 4px;
+  margin: 0 1px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #0b2b2f;
+  cursor: pointer;
+}
+
+.vp-chip:hover {
+  background: #efe6d4;
+  border-color: #d8ccb4;
+}
+
+.vp-chip-sep {
+  color: #b9a97f;
+  font-size: 11px;
+}
+
 .vp-pop-hint {
   color: #6d7a78;
   font-size: 11px;

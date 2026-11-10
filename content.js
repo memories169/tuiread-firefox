@@ -388,55 +388,125 @@
     return true;
   }
 
-  function showEditor(x, y, token) {
+  function showEditor(x, y, token, ctx) {
     closePop();
     const pop = el('div', 'vp-pop');
     pop.id = 'vp-pop';
+    const state = {
+      from: ctx.tokenIdx, to: ctx.tokenIdx,   // vung token dang chon [from..to]
+      han: token.han, vi: token.vi, kind: token.kind
+    };
+    ctx.tokensRef = ctx.tokens;               // chi doc
 
     const head = el('div', 'vp-pop-head');
-    head.appendChild(el('span', 'vp-pop-han', token.han));
+    const hanBox = el('span', 'vp-pop-han');
+    head.appendChild(hanBox);
     head.appendChild(el('span', 'vp-pop-kind', KIND_LABELS[token.kind] || token.kind));
     pop.appendChild(head);
 
-    const currentOverride = overridesMap[token.han];
-    if (currentOverride !== undefined && currentOverride !== token.vi) {
-      pop.appendChild(el('div', 'vp-pop-cur', 'Mặc định từ điển: ' + token.vi));
-    }
+    const cur = el('div', 'vp-pop-cur');
+    pop.appendChild(cur);
 
     const input = document.createElement('input');
     input.className = 'vp-pop-input';
     input.type = 'text';
-    input.value = currentOverride !== undefined ? currentOverride : token.vi;
     pop.appendChild(input);
 
-    const btns = el('div', 'vp-pop-btns');
-    const save = el('button', undefined, 'Lưu');
-    save.addEventListener('click', () => saveOverride(token.han, input.value.trim()));
-    btns.appendChild(save);
-    if (currentOverride !== undefined) {
-      const revert = el('button', undefined, 'Bỏ vá');
-      revert.addEventListener('click', () => saveOverride(token.han, ''));
-      btns.appendChild(revert);
+    // Vung chon hien tai: han ghep tu tokens[from..to], mac dinh la nghia ghep cua chung.
+    function selHan() {
+      let h = '';
+      for (let i = state.from; i <= state.to; i++) h += ctx.tokens[i][0];
+      return h;
     }
-    // F4: vá vào bộ từ điển RIÊNG của truyện đang đọc (không ảnh hưởng truyện khác).
+    function selDefaultVi() {
+      let v = '';
+      for (let i = state.from; i <= state.to; i++) v += ctx.tokens[i][1];
+      return v;
+    }
+
+    function render() {
+      // Chip tung CHU Han: bam vao chu o dau/cuoi de THU nhe vung (F2 - sua tung ky tu).
+      hanBox.textContent = '';
+      const before = state.from + '.' + state.to;
+      const han = selHan();
+      let charIdx = 0;
+      for (let ti = state.from; ti <= state.to; ti++) {
+        const t = ctx.tokens[ti];
+        for (const ch of t[0]) {
+          const chip = el('button', 'vp-chip');
+          chip.textContent = ch;
+          const ci = charIdx;
+          chip.addEventListener('click', () => {
+            // bam chip nao: neu la chu dau -> bo token dau; chu cuoi -> bo token cuoi;
+            // chip giua -> thu ve dung token do (from=to=ti).
+            if (ci === 0 && state.from < state.to) state.from++;
+            else if (ci + 1 >= [...han].length && state.to > state.from) state.to--;
+            else { state.from = ti; state.to = ti; }
+            render();
+          });
+          hanBox.appendChild(chip);
+          charIdx++;
+        }
+        if (ti < state.to) hanBox.appendChild(el('span', 'vp-chip-sep', '·'));
+      }
+      state.han = han;
+      const hasOv = overridesMap[state.han] !== undefined;
+      cur.textContent = hasOv && overridesMap[state.han] !== selDefaultVi()
+        ? 'Mặc định từ điển: ' + selDefaultVi()
+        : '';
+      if (input.value === '' || input.dataset.auto === '1') {
+        input.value = hasOv ? overridesMap[state.han] : selDefaultVi();
+        input.dataset.auto = '1';
+      }
+      const saveBtn = pop.querySelector('.vp-save');
+      if (saveBtn) saveBtn.textContent = state.from === state.to ? 'Lưu' : 'Lưu (' + (state.to - state.from + 1) + ' từ)';
+      if (ctx.setRange && before !== state.from + '.' + state.to) ctx.setRange(state.from, state.to);
+    }
+
+    const btns = el('div', 'vp-pop-btns');
+    // Mo rong vung sang token ke ben trai/phai (khong gioi han so lan bam).
+    const left = el('button', undefined, '◀');
+    left.title = 'Gộp thêm token bên trái';
+    left.addEventListener('click', () => {
+      if (state.from > 0 && ctx.tokens[state.from - 1][2] !== 'raw') { state.from--; render(); }
+    });
+    btns.appendChild(left);
+    const shrink = el('button', undefined, 'Thu gọn');
+    shrink.title = 'Thu về đúng token đầu';
+    shrink.addEventListener('click', () => { state.to = state.from; render(); });
+    btns.appendChild(shrink);
+    const right = el('button', undefined, '▶');
+    right.title = 'Gộp thêm token bên phải';
+    right.addEventListener('click', () => {
+      if (state.to + 1 < ctx.tokens.length && ctx.tokens[state.to + 1][2] !== 'raw') { state.to++; render(); }
+    });
+    btns.appendChild(right);
+
+    const save = el('button', 'vp-save', 'Lưu');
+    save.addEventListener('click', () => { input.dataset.auto = '0'; saveOverride(state.han, input.value.trim()); });
+    btns.appendChild(save);
     const saveBook = el('button', undefined, 'Chỉ truyện này');
-    saveBook.addEventListener('click', () => saveGlossary(token.han, input.value.trim()));
+    saveBook.addEventListener('click', () => { input.dataset.auto = '0'; saveGlossary(state.han, input.value.trim()); });
     btns.appendChild(saveBook);
+    const revert = el('button', undefined, 'Bỏ vá');
+    revert.addEventListener('click', () => { input.dataset.auto = '0'; saveOverride(state.han, ''); });
+    btns.appendChild(revert);
     const close = el('button', undefined, 'Đóng');
     close.addEventListener('click', closePop);
     btns.appendChild(close);
     pop.appendChild(btns);
 
-    pop.appendChild(el('div', 'vp-pop-hint', 'Áp dụng cho mọi nơi chữ này xuất hiện. Esc để đóng.'));
+    pop.appendChild(el('div', 'vp-pop-hint', '◀ ▶ gộp token kề; bấm chip chữ Hán để thu vùng. Esc đóng.'));
     (document.body || document.documentElement).appendChild(pop);
+    render();
 
     const width = pop.offsetWidth || 300;
     const height = pop.offsetHeight || 140;
     pop.style.left = Math.max(8, Math.min(x - 20, (window.innerWidth || 1024) - width - 8)) + 'px';
     pop.style.top = Math.max(8, Math.min(y + 16, (window.innerHeight || 768) - height - 8)) + 'px';
     input.focus();
-    input.select();
   }
+
 
   async function onDocClick(e) {
     const pop = document.getElementById('vp-pop');
@@ -466,16 +536,23 @@
     const token = tokens[tokenIdx];
     if (!token || token[2] === 'raw') return;   // đoạn không phải chữ Hán thì không cần vá
 
-    // F1: tô xanh thẫm đúng khoảng vi của token đang sửa (start = spans[tokenIdx][0],
-    // end = start token kế hoặc cuối chuỗi). vi của token có thể bị rút space đầu
-    // (needsSpace) nhưng spans ghi TRƯỚC khi rút nên dùng start là đủ chính xác.
+    // F1+F2: tô xanh thẫm vùng token đang chọn; card nhận ctx để mở rộng/thu vùng.
     const tokenStart = spans.find(([start, idx]) => idx === tokenIdx)?.[0] ?? -1;
     if (tokenStart >= 0) {
       const nextStart = spans.find(([start, idx]) => idx === tokenIdx + 1)?.[0] ?? node.nodeValue.length;
       showHighlightFor(node, tokenStart, Math.max(tokenStart + 1, nextStart));
     }
 
-    showEditor(e.clientX, e.clientY, { han: token[0], vi: token[1], kind: token[2] });
+    showEditor(e.clientX, e.clientY, { han: token[0], vi: token[1], kind: token[2] }, {
+      tokens, spans, tokenIdx, node,
+      // mở vùng chọn khi user bấm ◀ ▶ (đồng bộ highlight theo vùng mới)
+      setRange(from, to) {
+        const s = spans.find(([start, idx]) => idx === from)?.[0] ?? -1;
+        const e2 = to + 1 < tokens.length ? (spans.find(([start, idx]) => idx === to + 1)?.[0] ?? node.nodeValue.length) : node.nodeValue.length;
+        if (s >= 0) showHighlightFor(node, s, Math.max(s + 1, e2));
+        else clearHighlight();
+      }
+    });
   }
 
   document.addEventListener('click', e => { onDocClick(e); });
