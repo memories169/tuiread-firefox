@@ -154,13 +154,15 @@ function errText(err) {
 }
 
 async function readStore() {
-  const got = await callP(chrome.storage.local, 'get', ['settings', 'hostState', 'overrides', 'overridesVersion', 'siteSelectors']);
+  const got = await callP(chrome.storage.local, 'get', ['settings', 'hostState', 'overrides', 'overridesVersion', 'siteSelectors', 'glossaries', 'glossariesVersion']);
   return {
     settings: got.settings || {},
     hostState: got.hostState || {},
     overrides: got.overrides || {},
     overridesVersion: got.overridesVersion || 0,
-    siteSelectors: got.siteSelectors || DEFAULT_SITE_SELECTORS
+    siteSelectors: got.siteSelectors || DEFAULT_SITE_SELECTORS,
+    glossaries: got.glossaries || {},
+    glossariesVersion: got.glossariesVersion || 0
   };
 }
 
@@ -202,6 +204,16 @@ async function writeOverrides(map) {
   await callP(chrome.storage.local, 'set', { overrides: map, overridesVersion: version });
   const pushed = await pushOverrides(map, version);
   return { version, pushed };
+}
+
+// Ghi glossary per-book (F4) + tăng version riêng. Engine rebuild theo bookKey nên
+// mỗi lần lưu chỉ dựng lại engine của sách đó (cache engine-per-book ở offscreen).
+async function writeGlossaries(map) {
+  const got = await callP(chrome.storage.local, 'get', 'glossariesVersion');
+  const version = (got.glossariesVersion || 0) + 1;
+  await callP(chrome.storage.local, 'set', { glossaries: map, glossariesVersion: version });
+  try { await callP(chrome.runtime, 'sendMessage', { type: 'vp:settings', settings: {} }); } catch { /* engine chưa sống */ }
+  return { version };
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -273,7 +285,61 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // Them site moi: popup da xin quyen truoc (permissions.request phai nam trong cú bam cua
+  // ---- F4: glossary per-book ----
+  // Sửa MỘT mục trong bộ từ điển riêng của truyện: msg { bookKey, han, vi }.
+  // vi rỗng = xoá mục. Trả về bộ glossary của đúng sách đó.
+  if (msg.type === 'vp:glossary-set') {
+    (async () => {
+      const bookKey = String(msg.bookKey || '').trim();
+      const han = String(msg.han || '').trim();
+      if (!bookKey) return sendResponse({ ok: false, error: 'thiếu bookKey' });
+      if (!han) return sendResponse({ ok: false, error: 'thiếu chữ Hán' });
+      const got = await callP(chrome.storage.local, 'get', 'glossaries');
+      const all = got.glossaries || {};
+      const book = { ...(all[bookKey] || {}) };
+      const vi = String(msg.vi == null ? '' : msg.vi).trim();
+      if (vi) book[han] = vi;
+      else delete book[han];
+      all[bookKey] = book;
+      const { version } = await writeGlossaries(all);
+      sendResponse({ ok: true, glossary: book, version });
+    })().catch(err => sendResponse({ ok: false, error: errText(err) }));
+    return true;
+  }
+
+  // Thay TOÀN BỘ bộ glossary của một sách (options page): msg { bookKey, entries: [{han, vi}] }.
+  if (msg.type === 'vp:glossary-replace') {
+    (async () => {
+      const bookKey = String(msg.bookKey || '').trim();
+      if (!bookKey) return sendResponse({ ok: false, error: 'thiếu bookKey' });
+      const got = await callP(chrome.storage.local, 'get', 'glossaries');
+      const all = got.glossaries || {};
+      const book = {};
+      for (const entry of (msg.entries || [])) {
+        const han = String((entry && entry.han) || '').trim();
+        const vi = String((entry && entry.vi) == null ? '' : entry.vi).trim();
+        if (han && vi) book[han] = vi;
+      }
+      if (Object.keys(book).length) all[bookKey] = book;
+      else delete all[bookKey];
+      const { version } = await writeGlossaries(all);
+      sendResponse({ ok: true, glossary: book, version });
+    })().catch(err => sendResponse({ ok: false, error: errText(err) }));
+    return true;
+  }
+
+  // Danh sách các sách đã có glossary + số mục từng sách (options page hiển thị).
+  if (msg.type === 'vp:glossary-list') {
+    (async () => {
+      const got = await callP(chrome.storage.local, 'get', ['glossaries', 'glossariesVersion']);
+      const all = got.glossaries || {};
+      const books = Object.keys(all).sort().map(key => ({ key, count: Object.keys(all[key]).length }));
+      sendResponse({ ok: true, books, version: got.glossariesVersion || 0 });
+    })().catch(err => sendResponse({ ok: false, error: errText(err) }));
+    return true;
+  }
+
+  // Thêm site mới: popup da xin quyen truoc (permissions.request phai nam trong cú bam cua
   // user, goi tu popup); background chi lo dang ky content script vinh vien + chong inject doi.
   if (msg.type === 'vp:site-add') {
     (async () => {
@@ -323,12 +389,13 @@ chrome.runtime.onConnect.addListener(port => {
 // Chi background nghe chrome.storage: cac noi con lai nhan tin nhan, dung invariant "mot chu
 // luu tru duy nhat" va chay duoc ca khi browser nao do bat chrome.storage o page context.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local' || !changes.overrides) return;
+  if (area !== 'local' || (!changes.overrides && !changes.glossaries)) return;
   try {
     chrome.runtime.sendMessage({
       type: 'vp:store-changed',
       keys: Object.keys(changes),
-      overrides: changes.overrides.newValue || {}
+      overrides: changes.overrides ? (changes.overrides.newValue || {}) : undefined,
+      glossaries: changes.glossaries ? (changes.glossaries.newValue || {}) : undefined
     }, () => { void chrome.runtime.lastError; });   // khong ai nghe thi thoi
   } catch { /* chua co context nao mo */ }
 });

@@ -27,6 +27,19 @@
     return location.hostname.replace(/^www\./, '');
   }
 
+  // F4: key bộ từ điển riêng của truyện = host + đường dẫn sách. Chương khác nhau của
+  // cùng một sách phải ra CÙNG key: uukanshu `/book/21897/16209313.html` -> `uukanshu.cc/book/21897`;
+  // piaotia `/book/2342/1234567.html` -> `piaotia.com/book/2342`. Không khớp mẫu nào thì
+  // dùng host + toàn bộ path (bỏ đuôi file) — vẫn gom được chương trình biểu diễn khác.
+  function bookKey() {
+    const path = location.pathname;
+    let m = path.match(/\/book\/(\d+)\//);
+    if (m) return host() + '/book/' + m[1];
+    m = path.match(/^(\/[^/]+\/\d+)\//);
+    if (m) return host() + m[1];
+    return host() + path.replace(/[^/]+$/, '');
+  }
+
   function hanCount(text) {
     const m = text.match(HAN_GLOBAL);
     return m ? m.length : 0;
@@ -142,12 +155,12 @@
   // offscreen document) roi CHO engine page nhan onMessage (module script chua kip chay tu
   // iframe/HTML moi tao) truoc khi dich lai. Lan thu 2/3 de phong truong hop load cham.
   async function askTranslate(texts) {
-    let resp = await send({ type: 'vp:translate', texts });
+    let resp = await send({ type: 'vp:translate', texts, bookKey: bookKey() });
     if (resp && resp.ok) return resp.results;
     await send({ type: 'vp:ensure' });
     for (const wait of [300, 900]) {
       await sleep(wait);
-      resp = await send({ type: 'vp:translate', texts });
+      resp = await send({ type: 'vp:translate', texts, bookKey: bookKey() });
       if (resp && resp.ok) return resp.results;
     }
     throw new Error((resp && resp.error) || 'engine khong phan hoi');
@@ -358,6 +371,23 @@
     return true;
   }
 
+  // F4: lưu nghĩa vào bộ từ điển RIÊNG của truyện (glossary per-book). Engine rebuild
+  // theo bookKey -> trang tự dịch lại với nghĩa mới; truyện khác không bị ảnh hưởng.
+  async function saveGlossary(han, vi) {
+    const resp = await send({ type: 'vp:glossary-set', bookKey: bookKey(), han, vi });
+    if (!resp || !resp.ok) {
+      setStatusChip('Không lưu được glossary: ' + ((resp && resp.error) || 'không có phản hồi'));
+      setTimeout(() => setStatusChip(''), 5000);
+      return false;
+    }
+    closePop();
+    setStatusChip('Đã vá "' + han + '" vào truyện này — đang dịch lại…');
+    restore();
+    await runOnce();
+    setStatusChip('');
+    return true;
+  }
+
   function showEditor(x, y, token) {
     closePop();
     const pop = el('div', 'vp-pop');
@@ -388,6 +418,10 @@
       revert.addEventListener('click', () => saveOverride(token.han, ''));
       btns.appendChild(revert);
     }
+    // F4: vá vào bộ từ điển RIÊNG của truyện đang đọc (không ảnh hưởng truyện khác).
+    const saveBook = el('button', undefined, 'Chỉ truyện này');
+    saveBook.addEventListener('click', () => saveGlossary(token.han, input.value.trim()));
+    btns.appendChild(saveBook);
     const close = el('button', undefined, 'Đóng');
     close.addEventListener('click', closePop);
     btns.appendChild(close);
@@ -419,7 +453,7 @@
     if (!node || node.nodeType !== Node.TEXT_NODE || !originals.has(node)) return;
 
     const original = originals.get(node);
-    const resp = await send({ type: 'vp:tokens', texts: [original] });
+    const resp = await send({ type: 'vp:tokens', texts: [original], bookKey: bookKey() });
     if (!resp || !resp.ok) return;
     const tokens = (resp.tokens && resp.tokens[0]) || [];
     const spans = (resp.spans && resp.spans[0]) || [];

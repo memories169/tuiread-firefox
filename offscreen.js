@@ -31,7 +31,16 @@ function noteEvent(text) {
 // Layer override (từ điển vá của user): nạp từ background lúc boot, cập nhật qua vp:overrides.
 let overridesMap = new Map();
 let overridesVersion = 0;
+// Glossary RIÊNG theo truyện (F4): { bookKey: { han: vi } } nạp một lần; khi dịch thì
+// background gửi kèm bookKey -> engine dựng lớp đúng cho sách đó (lưu theo bookKey).
+let glossariesMap = {};
+let glossariesVersion = 0;
 let supplementHash = '';
+// Engine đang áp dụng bookKey nào (do background gửi kèm vp:translate/vp:tokens).
+let appliedBookKey = '';
+// Tối đa 4 engine song song (4 truyện đang đọc xen kẽ); quá thì bỏ engine cũ nhất.
+const engineByBook = new Map();
+const ENGINE_CACHE_MAX = 4;
 
 // Thu tu nap: file nho truoc de engine co the tra loi som, file 36MB cuoi cung.
 // File bự (vp, names) parse STREAMING từ buffer: không giữ mảng ~1 triệu dòng trong RAM
@@ -158,6 +167,7 @@ function cacheContextParts(settings) {
     'v' + DICT_VERSION,
     'sup' + (supplementHash || 0),
     'ov' + overridesVersion,
+    'gl' + glossariesVersion,
     ...ENGINE_KEYS.map(key => key.charAt(0) + String(settings[key] === undefined ? '' : settings[key]))
   ];
 }
@@ -167,18 +177,43 @@ async function rebuild(reason) {
   const t0 = Date.now();
   const parsedMs = await loadData();
   const { settings, fromWorker, store } = await fetchSettings();
+  // Rebuild do override/glossary/settings đổi -> engine-per-book đều stale, xoá sạch.
+  // (Rebuild do đổi sách chỉ chuyển appliedBookKey, không tới đây.)
+  if (engineByBook.size && !String(reason).startsWith('book:')) engineByBook.clear();
   if (store) {
     overridesMap = new Map(Object.entries(store.overrides || {}));
     overridesVersion = store.overridesVersion || 0;
+    glossariesMap = store.glossaries || {};
+    glossariesVersion = store.glossariesVersion || 0;
   }
   setKeyContext(cacheContextParts(settings));
   setStatus({ state: 'loading', message: 'Đang dựng engine (lập chỉ mục cụm từ)...', progress: 0.95 });
   // Gộp lớp supplement: Pack-UuHoa (cộng đồng) < Supplement.txt (bản vá tay thắng khi trùng key).
   const supplementMerged = new Map([...(DATA.pack || []), ...(DATA.supplement || [])]);
+  // Cache engine theo bookKey: mỗi sách có glossary riêng (F4) -> mỗi sách một engine
+  // (dict dùng chung, chỉ lớp glossary khác nhau; VP/names parse một lần nên rẻ).
+  const bookKey = typeof appliedBookKey === 'string' ? appliedBookKey : '';
+  const bookEngineKey = bookKey || '(chung)';
+  if (engineByBook.has(bookEngineKey) && sameEngineSettings(appliedEngineSettings, settings)) {
+    engine = engineByBook.get(bookEngineKey);
+    setStatus({
+      state: 'ready', message: 'Sẵn sàng (engine sách "' + bookEngineKey + '")', progress: 1,
+      info: engine.info, overrides: { count: overridesMap.size, version: overridesVersion },
+      glossaries: { count: Object.keys(glossariesMap).length, version: glossariesVersion },
+      settingsSource: fromWorker ? 'background' : 'cache/mac-dinh'
+    });
+    return engine;
+  }
+  const glossary = new Map(Object.entries(glossariesMap[bookEngineKey] || {}));
   engine = createEngine(
-    { pa: DATA.pa, vp: DATA.vp, names: DATA.names, pronouns: DATA.pronouns, t2s: DATA.t2s, rules: DATA.rules, overrides: overridesMap, supplement: supplementMerged, vpMax: DATA_MAX.vpMax, namesMax: DATA_MAX.namesMax },
+    { pa: DATA.pa, vp: DATA.vp, names: DATA.names, pronouns: DATA.pronouns, t2s: DATA.t2s, rules: DATA.rules, overrides: overridesMap, glossary, supplement: supplementMerged, vpMax: DATA_MAX.vpMax, namesMax: DATA_MAX.namesMax },
     settings
   );
+  engineByBook.set(bookEngineKey, engine);
+  while (engineByBook.size > ENGINE_CACHE_MAX) {
+    const oldest = engineByBook.keys().next().value;
+    engineByBook.delete(oldest);
+  }
   appliedEngineSettings = settings;
   appliedOverridesVersion = overridesVersion;
   const loadMs = Date.now() - t0;
@@ -197,6 +232,8 @@ async function rebuild(reason) {
     bytes: { vp: DATA.vpBytes, names: DATA.namesBytes, supplement: DATA.supplementBytes },
     cache: cacheStats(),
     overrides: { count: overridesMap.size, version: overridesVersion },
+    glossaries: { count: Object.keys(glossariesMap).length, version: glossariesVersion },
+    book: bookEngineKey,
     settingsSource: fromWorker ? 'background' : 'cache/mac-dinh',
     warning: fromWorker ? null : 'Background không trả lời — engine dùng settings cache hoặc mặc định'
   });
@@ -248,7 +285,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       noteEvent('nhận override version ' + (msg.version || 0));
       overridesMap = new Map(Object.entries(msg.overrides || {}));
       overridesVersion = msg.version || 0;
-      if (!engine || overridesVersion !== appliedOverridesVersion) await rebuildSerialized('overrides');
+      if (!engine || overridesVersion !== appliedOverridesVersion) {
+        appliedBookKey = '';   // buộc rebuild engine-per-book để glossary mới vào đúng sách
+        await rebuildSerialized('overrides');
+      }
       sendResponse({ ok: true });
     })().catch(err => { fail(err); sendResponse({ ok: false, error: String(err && err.message || err) }); });
     return true;
@@ -258,6 +298,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       try {
         const texts = msg.texts || [];
+        // Đổi sách (bookKey mới) -> rebuild TRƯỚC khi dịch để lớp glossary đúng.
+        if (typeof msg.bookKey === 'string' && msg.bookKey !== appliedBookKey) {
+          appliedBookKey = msg.bookKey;
+          await rebuildSerialized('book:' + msg.bookKey);
+        }
         const keys = texts.map(makeKey);
         const hits = await cacheGet(keys);
         const results = new Array(texts.length);
@@ -289,6 +334,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       try {
         const texts = msg.texts || [];
+        if (typeof msg.bookKey === 'string' && msg.bookKey !== appliedBookKey) {
+          appliedBookKey = msg.bookKey;
+          await rebuildSerialized('book:' + msg.bookKey);
+        }
         const keys = texts.map(makeKey);
         const hits = await cacheGet(keys);
         const tokens = new Array(texts.length);

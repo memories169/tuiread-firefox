@@ -57,6 +57,11 @@ export function createEngine(dicts, settings = {}) {
   // thấp hơn override của user, cao hơn rule/Names/VP/PA.
   const supplement = dicts.supplement && dicts.supplement.size ? dicts.supplement : null;
   const supMax = supplement ? maxKeyLength(supplement) : 0;
+  // Glossary RIÊNG theo từng truyện (F4): từ điển nhỏ user nhập cho một sách, THẮNG từ
+  // điển gốc (VP/Names/rules) nhưng thua override toàn cục. Engine nhận dict "glossary"
+  // theo bookKey của trang đang dịch (background/offscreen chọn lớp đúng).
+  const glossary = dicts.glossary && dicts.glossary.size ? dicts.glossary : null;
+  const glMax = glossary ? maxKeyLength(glossary) : 0;
   const ruleEngine = opt.useRules && dicts.rules ? dicts.rules : null;
   // MaxKeyLength tính sẵn từ lúc parse (offscreen gửi kèm): rebuild sau mỗi lần Lưu
   // không phải quét lại hơn 1 triệu key (~200ms + đỉnh cấp phát) nữa.
@@ -108,6 +113,32 @@ export function createEngine(dicts, settings = {}) {
       if (hit) {
         if (plainStart < pos) out.push({ kind: 'plain', text: text.slice(plainStart, pos) });
         out.push({ kind: 'ov', text: hit.value, han: text.slice(pos, pos + hit.len) });
+        pos += hit.len;
+        plainStart = pos;
+        continue;
+      }
+      pos++;
+    }
+    if (plainStart < text.length) out.push({ kind: 'plain', text: text.slice(plainStart) });
+    return out;
+  }
+
+  // Layer glossary per-book (F4): tra NGAY SAU override toàn cục, TRƯỚC supplement/
+  // rule/Names/VP/PA -> từ điển riêng của truyện thắng từ điển gốc.
+  function segmentGlossary(text) {
+    if (!glossary) return [{ kind: 'plain', text }];
+    const out = [];
+    let plainStart = 0, pos = 0;
+    while (pos < text.length) {
+      const limit = Math.min(glMax, text.length - pos);
+      let hit = null;
+      for (let len = limit; len >= 1; len--) {
+        const value = glossary.get(text.substr(pos, len));
+        if (value !== undefined) { hit = { value, len }; break; }
+      }
+      if (hit) {
+        if (plainStart < pos) out.push({ kind: 'plain', text: text.slice(plainStart, pos) });
+        out.push({ kind: 'gl', text: hit.value, han: text.slice(pos, pos + hit.len) });
         pos += hit.len;
         plainStart = pos;
         continue;
@@ -229,13 +260,16 @@ export function createEngine(dicts, settings = {}) {
     let tokens = [];
     for (const piece of segmentOverrides(simplified)) {
       if (piece.kind === 'ov') { tokens.push({ han: piece.han, vi: piece.text, kind: 'ov' }); continue; }
-      for (const seg of segmentSupplement(piece.text)) {
-        if (seg.kind === 'sup') { tokens.push({ han: seg.han, vi: opt.firstMeaning ? firstMeaning(seg.text, opt.separator) : seg.text, kind: 'sup' }); continue; }
-        for (const part of segmentRules(seg.text)) {
-          if (part.kind === 'rule') { tokens.push({ han: part.han, vi: part.text, kind: 'rule' }); continue; }
-          for (const sub of segmentNames(part.text)) {
-            if (sub.kind === 'name') tokens.push({ han: sub.han, vi: sub.text, kind: 'name' });
-            else tokens = tokens.concat(tokenizePlain(sub.text));
+      for (const gseg of segmentGlossary(piece.text)) {
+        if (gseg.kind === 'gl') { tokens.push({ han: gseg.han, vi: gseg.text, kind: 'gl' }); continue; }
+        for (const seg of segmentSupplement(gseg.text)) {
+          if (seg.kind === 'sup') { tokens.push({ han: seg.han, vi: opt.firstMeaning ? firstMeaning(seg.text, opt.separator) : seg.text, kind: 'sup' }); continue; }
+          for (const part of segmentRules(seg.text)) {
+            if (part.kind === 'rule') { tokens.push({ han: part.han, vi: part.text, kind: 'rule' }); continue; }
+            for (const sub of segmentNames(part.text)) {
+              if (sub.kind === 'name') tokens.push({ han: sub.han, vi: sub.text, kind: 'name' });
+              else tokens = tokens.concat(tokenizePlain(sub.text));
+            }
           }
         }
       }
@@ -275,5 +309,5 @@ export function createEngine(dicts, settings = {}) {
     return { vi: out, tokens, spans, stats };
   }
 
-  return { translate, vpMax, namesMax, info: { vp: vp.size, names: names ? names.size : 0, pa: pa.size, rules: ruleEngine ? ruleEngine.count : 0, ov: overrides ? overrides.size : 0, sup: supplement ? supplement.size : 0 } };
+  return { translate, vpMax, namesMax, info: { vp: vp.size, names: names ? names.size : 0, pa: pa.size, rules: ruleEngine ? ruleEngine.count : 0, ov: overrides ? overrides.size : 0, gl: glossary ? glossary.size : 0, sup: supplement ? supplement.size : 0 } };
 }
