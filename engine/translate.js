@@ -2,7 +2,7 @@
 // Khong dong DOM o day; chay duoc trong Node lan trong trinh duyet.
 
 import { toSimplified } from './t2s.js';
-import { firstMeaning, maxKeyLength } from './dict.js';
+import { firstMeaning, cleanMeaning, maxKeyLength } from './dict.js';
 
 const PUNCT_MAP = {
   '，': ',', '、': ',', '。': '.', '．': '.', '？': '?', '！': '!',
@@ -43,7 +43,7 @@ function autoUpperCase(text) {
 
 export function createEngine(dicts, settings = {}) {
   const opt = {
-    firstMeaning: false,   // mặc định HIỂN THỊ TẤT CẢ nghĩa (cách nhau '/') theo yêu cầu; options tắt được
+    firstMeaning: true,
     separator: '/',
     useRules: true,
     useNames: true,
@@ -231,7 +231,9 @@ export function createEngine(dicts, settings = {}) {
       const hit = vpAt(text, pos);
       if (hit) {
         const value = opt.firstMeaning ? firstMeaning(hit.value, opt.separator) : hit.value;
-        tokens.push({ han: hit.key, vi: value, kind: hit.len > 1 ? 'vp' : 'vp1' });
+        // `raw` = TOÀN BỘ danh sách nghĩa gốc (chưa cắt bởi firstMeaning) — card sửa
+        // nghĩa hiển thị đủ các lựa chọn cách nhau '/'; token rửa/sort không đụng nó.
+        tokens.push({ han: hit.key, vi: value, kind: hit.len > 1 ? 'vp' : 'vp1', raw: cleanMeaning(hit.value) || value });
         pos += hit.len;
         continue;
       }
@@ -263,7 +265,7 @@ export function createEngine(dicts, settings = {}) {
       for (const gseg of segmentGlossary(piece.text)) {
         if (gseg.kind === 'gl') { tokens.push({ han: gseg.han, vi: gseg.text, kind: 'gl' }); continue; }
         for (const seg of segmentSupplement(gseg.text)) {
-          if (seg.kind === 'sup') { tokens.push({ han: seg.han, vi: opt.firstMeaning ? firstMeaning(seg.text, opt.separator) : seg.text, kind: 'sup' }); continue; }
+          if (seg.kind === 'sup') { tokens.push({ han: seg.han, vi: opt.firstMeaning ? firstMeaning(seg.text, opt.separator) : seg.text, kind: 'sup', raw: cleanMeaning(seg.text) || seg.text }); continue; }
           for (const part of segmentRules(seg.text)) {
             if (part.kind === 'rule') { tokens.push({ han: part.han, vi: part.text, kind: 'rule' }); continue; }
             for (const sub of segmentNames(part.text)) {

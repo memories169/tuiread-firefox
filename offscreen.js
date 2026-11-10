@@ -366,7 +366,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           const putEntries = [];
           for (const i of missIdx) {
             const out = eng.translate(texts[i]);
-            tokens[i] = out.tokens.map(t => [t.han, t.vi, t.kind, eng.phienOf(t.han)]);
+            tokens[i] = out.tokens.map(t => [t.han, t.vi, t.kind, eng.phienOf(t.han), t.raw || '']);
             spans[i] = out.spans;
             putEntries.push([keys[i], { vi: out.stats ? out.vi : texts[i], tokens: tokens[i], spans: out.spans, ts: Date.now() }]);
           }
@@ -374,8 +374,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         } else if (engine) {
           // hit cache: token cũ 3 phần tử - bơm âm Hán Việt ngay trước khi trả về.
           for (let i = 0; i < tokens.length; i++) {
-            if (tokens[i] && tokens[i].length && tokens[i][0].length < 4) {
-              tokens[i] = tokens[i].map(t => t.length >= 4 ? t : [...t, engine.phienOf(t[0])]);
+            if (tokens[i] && tokens[i].length) {
+              // token cũ 3/4 phần tử -> bơm âm Hán Việt + raw (rỗng nếu không có).
+              tokens[i] = tokens[i].map(t => t.length >= 5 ? t : [...t, engine.phienOf(t[0]), '']);
             }
           }
         }

@@ -15,7 +15,7 @@
   const inserted = new Set();    // span ban chen them (che do song ngu)
   const done = new WeakSet();
   let applying = false;
-  let settings = { mode: 'vi', firstMeaning: false, skipParticles: false, translateChrome: true, allowClickEdit: true };
+  let settings = { mode: 'vi', firstMeaning: true, skipParticles: false, translateChrome: true, allowClickEdit: true };
   let hostEnabled = true;
   let observer = null;
   let queue = new Set();
@@ -518,10 +518,19 @@
       return '';
     }
     const OPEN_SET = new Set('([「《〈"\'');
+    // Ô Vietphrase mặc định: HIỂN THỊ TẤT CẢ nghĩa của từ (token[4] `raw` — danh sách
+    // gốc từ VP/supplement, các nghĩa cách nhau '/'). Trang truyện vẫn chỉ hiện nghĩa
+    // đầu (firstMeaning); card là nơi người dùng XEM HẾT lựa chọn rồi vá một nghĩa.
+    // Token không có raw (rule/name/gl/ov/token cũ) thì dùng nghĩa hiện tại token[1].
     function selDefaultVi() {
       let v = '';
       for (let i = state.from; i <= state.to; i++) {
-        const vi = ctx.tokens[i][1];
+        const t = ctx.tokens[i];
+        let vi = (t.length >= 5 && t[4]) ? t[4] : t[1];
+        if (vi && vi.includes('/')) {
+          const parts = vi.split('/').map(s => s.trim()).filter(Boolean);
+          if (parts.length) vi = parts.join('/');   // gỡ candidate rỗng đầu/đuôi ('/lấy/mắng' -> 'lấy/mắng')
+        }
         if (!vi) continue;
         v += needsSpaceJoin(v.slice(-1), vi[0]) + vi;
       }

@@ -93,7 +93,7 @@ check('huong bang 繁->簡 dung (愛->爱, khong phai nguoc lai)', t2sMap.get('�
 check('PA la bang don zi (moi key 1 chu)', pa.size > 0 && [...pa.keys()].every(k => [...k].length === 1));
 
 const multi = await loadEngine(readFile, { firstMeaning: false });
-check('firstMeaning=false (default) -> tat ca nghia (co dau /)', engine.translate('她').vi === 'Nàng/他', engine.translate('她').vi);
+check('tat ca nghia khi firstMeaning=false (multi engine)', multi.translate('她').vi === 'Nàng/他', multi.translate('她').vi);
 check('firstMeaning=false -> nhieu nghia phan tach', multi.translate('她').vi === 'Nàng/他', multi.translate('她').vi);
 
 // ---------------------------------------------------------------- 3b. Layer override (tokenMap click-to-edit)
@@ -110,9 +110,9 @@ const mkOvEngine = (overrides, settings = {}) => createEngine(
 );
 check('override thang VP (ca khi firstMeaning on)', mkOvEngine(new Map([['魔法', 'ma thuật riêng']])).translate('魔法').vi === 'Ma thuật riêng',
   mkOvEngine(new Map([['魔法', 'ma thuật riêng']])).translate('魔法').vi);
-check('khong override -> VP tra tat ca nghia (default)', mkOvEngine(new Map()).translate('魔法').vi === 'Phép thuật/pháp thuật', mkOvEngine(new Map()).translate('魔法').vi);
+check('khong override -> VP tra nghia dau (default firstMeaning on)', mkOvEngine(new Map()).translate('魔法').vi === 'Phép thuật', mkOvEngine(new Map()).translate('魔法').vi);
 check('firstMeaning=true (bat lai trong options) -> mot nghia dau', mkOvEngine(new Map(), { firstMeaning: true }).translate('她').vi === '她', mkOvEngine(new Map(), { firstMeaning: true }).translate('她').vi);
-check('firstMeaning=true trong settings -> nghia dau', mkOvEngine(new Map(), { firstMeaning: true }).translate('魔法').vi === 'Phép thuật');
+check('firstMeaning=false trong settings -> tat ca nghia', mkOvEngine(new Map(), { firstMeaning: false }).translate('魔法').vi === 'Phép thuật/pháp thuật');
 check('override thang Names', mkOvEngine(new Map([['林動', 'Võ Động']])).translate('林動出手').vi.startsWith('Võ Động'),
   mkOvEngine(new Map([['林動', 'Võ Động']])).translate('林動出手').vi);
 check('override don tu thang PA fallback', mkOvEngine(new Map([['魔', 'ma thuật']])).translate('魔法').vi.startsWith('Ma thuật'),
@@ -151,7 +151,7 @@ check('firstMeaning bo qua candidate rong (着, engine riêng firstMeaning=true)
   mkOvEngine(new Map(), { firstMeaning: true }).translate('她').vi === '她'   // sanity
     ? createEngine({ vp: new Map([['着', '/lấy/mắng']]), pa: new Map(), names: new Map(), t2s: new Map(), overrides: new Map() }, { firstMeaning: true }).translate('着').vi === 'Lấy'
     : false);
-check('default (firstMeaning off) giu nguyen ca candidate rong (着)', engine.translate('着').vi === '/lấy/mắng', engine.translate('着').vi);
+check('firstMeaning on bo candidate rong (着 -> Lấy)', engine.translate('着').vi === 'Lấy', engine.translate('着').vi);
 // dict gộp giữ được mục tốt của truyencuatui mà ldhieu thiếu
 check('dict gộp giữ mục truyencuatui (和地球相似)', engine.translate('和地球相似').vi === 'Tương tự với địa cầu', engine.translate('和地球相似').vi);
 check('dict gộp dùng order ldhieu (一款)', engine.translate('一款').vi.startsWith('Một cái'), engine.translate('一款').vi);
