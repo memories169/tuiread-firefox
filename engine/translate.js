@@ -294,11 +294,20 @@ export function createEngine(dicts, settings = {}) {
         out += ' ';
         vi = vi.replace(/^ +/, '');   // space vừa chèn thay cho space đầu token -> không bao giờ có 2 space liền (tương đương rửa toàn cục cũ)
       }
-      spans.push([out.length, i]);
+      if (vi.trim()) spans.push([out.length, i]);   // token whitespace-thuan: không có span (text có thể bị trim mất -> span lac)
       out += vi;
       sentenceStart = /[.!?]\s*$/.test(vi) || /\n\s*$/.test(vi);
     }
-    out = out.trim();
+    // spans ghi trên chuỗi TRƯỚC trim; nếu trim cắt/gọt thì DỊCH toàn bộ offset
+    // (highlight/click-map của content script trỏ nhầm chữ — lỗi "lệch 1 chữ" trên
+    // truyện mở đầu đoạn bằng fullwidth space). Tính lượng cắt ở ĐẦU, dồn spans về
+    // chuỗi sau trim; đuôi cắt không ảnh hưởng offset nào vì không có span sau nó.
+    const cut = out.length - out.trimStart().length;
+    if (cut > 0) {
+      for (const sp of spans) sp[0] = Math.max(0, sp[0] - cut);
+      out = out.trimStart();
+    }
+    out = out.trimEnd();
 
     const han = tokens.filter(t => HAN_RE.test(t.han));
     const stats = {
