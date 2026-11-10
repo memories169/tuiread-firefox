@@ -236,7 +236,9 @@ if (!fast) {
       return t;
     };
 
-    const before = { page: hanOf(window.document.body), container: hanOf(scopeOf()), br: window.document.querySelectorAll('br').length, kids: window.document.body.childNodes.length };
+    // Đếm con body TRỪ chip trạng thái của chính tiện ích (chip marker 0.5.0 tự hiện 4s)
+    const kidsOf = el => [...el.childNodes].filter(n => !(n.id === 'vp-status-chip')).length;
+    const before = { page: hanOf(window.document.body), container: hanOf(scopeOf()), br: window.document.querySelectorAll('br').length, kids: kidsOf(window.document.body) };
     window.eval(contentSrc);
 
     const tRun = Date.now();
@@ -251,8 +253,8 @@ if (!fast) {
 
     check(c.name + ': vung noi dung duoc convert hoan toan', before.container > 300 && afterContainer <= Math.ceil(before.container * 0.02), before.container + ' -> ' + afterContainer + ' chu Han (' + (Date.now() - tRun) + 'ms)');
     check(c.name + ': ca trang (ca menu/header/footer) gan sach chu Han', hanOf(window.document.body) / before.page < 0.02, hanOf(window.document.body) + '/' + before.page);
-    check(c.name + ': khong pha markup (<br>, so con/body)', window.document.querySelectorAll('br').length === before.br && window.document.body.childNodes.length === before.kids,
-      'br ' + window.document.querySelectorAll('br').length + '/' + before.br + ', kids ' + window.document.body.childNodes.length + '/' + before.kids);
+    check(c.name + ': khong pha markup (<br>, so con/body)', window.document.querySelectorAll('br').length === before.br && kidsOf(window.document.body) === before.kids,
+      'br ' + window.document.querySelectorAll('br').length + '/' + before.br + ', kids ' + kidsOf(window.document.body) + '/' + before.kids);
     check(c.name + ': ket qua co chu cai Tieng Viet', /[a-zA-Zàáâãèéêìíòóôõùúýăđơư]/.test(scopeOf().textContent));
 
     // restore qua vp:command
