@@ -285,7 +285,11 @@ export function createEngine(dicts, settings = {}) {
     for (let i = 0; i < tokens.length; i++) {
       let vi = tokens[i].vi;
       if (vi === undefined || vi === '') continue;
-      vi = vi.replace(/:\./g, ':').replace(/ {2,}/g, ' ');
+      vi = vi.replace(/:\./g, ':').replace(/ {2,}/g, ' ')
+        // Raw run giữ \n (giữ xuống dòng) nhưng space/thụt đầu dòng SAU \n là khoảng
+        // trắng in đầu của đoạn gốc (　　) — HTML không hiển thị nó ở đầu dòng, giữ
+        // lại sẽ thành "khoảng trống đầu dòng" trên bản dịch.
+        .replace(/\n[\s\u3000]+/g, '\n');
       if (sentenceStart) vi = autoUpperCase(vi);
       else vi = vi.replace(/([.!?]\s+|\n+\s*)([a-zà-ỹả~])/g, (m, pre, ch) => pre + ch.toLocaleUpperCase('vi'));
       tokens[i].vi = vi;   // token trả về phải là nghĩa đã rửa: card click-to-edit hiện đúng những gì đang trên màn hình
