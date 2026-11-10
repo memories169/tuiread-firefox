@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TuiRead",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Đọc raw truyện tiếng Trung",
   "icons": {
     "16": "icons/icon16.png",
