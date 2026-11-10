@@ -317,8 +317,12 @@ export function createEngine(dicts, settings = {}) {
       // lộn xộn ('Chương trong miệng hai người của nhạc'). prev>=2 chữ + next là từ
       // có nghĩa -> 'B của A' đúng ngữ pháp Việt (章岳的爷爷 -> 'gia gia của Chương Nhạc'
       // khi tên khớp trọn; '爷爷' prev 2 chữ -> 'gia gia của Chương|Nhạc' vẫn ổn hơn).
+      // NEXT cũng phải là TỪ >= 2 chữ: next 1 chữ thường là MẢNH TÊN (而兩人口中的
+      // 章岳 -> 的 | 章 | 岳 — 章 là đầu tên bị tách; flip đưa 章 lên trước 的 làm
+      // câu xé lẻ: 'chương của trong miệng hai người nhạc'). Next 1 chữ chỉ flip khi
+      // cụm được gộp trọn (章岳 >= 2) — cụm ngắn hơn thì chỉ gán 'của', giữ trật tự.
       if (hanEnd && hanStart && flipable(prev.kind) && flipable(next.kind)
-          && [...prev.han].length >= 2 && [...next.han].length >= 1) {
+          && [...prev.han].length >= 2 && [...next.han].length >= 2) {
         tokens[i - 1] = next;
         tokens[i + 1] = prev;
         i++;   // bỏ qua token B vừa đảo về trước — đã xử lý, tránh đảo ngược lại
