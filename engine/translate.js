@@ -294,6 +294,19 @@ export function createEngine(dicts, settings = {}) {
       i--;                    // xét tiếp cặp trước đó (tên 3 chữ: 章|晓|峰)
     }
 
+    // Gộp token ĐƠN CHỮ liền kề ngay SAU 的 thành tên (的|章|岳 -> 的|章岳) — đối
+    // xứng với gộp phía trước; giúp luật 的 nhìn thấy TÊN HOÀN CHỈNH (2+ chữ).
+    for (let i = 0; i < tokens.length - 2; i++) {
+      const de = tokens[i], a = tokens[i + 1], b = tokens[i + 2];
+      if (!de || !a || !b) continue;
+      if (de.han !== '的' || (de.kind !== 'vp1' && de.kind !== 'pa')) continue;
+      if (a.kind !== b.kind || (a.kind !== 'vp1' && a.kind !== 'pa')) continue;
+      if ([...a.han].length !== 1 || [...b.han].length !== 1) continue;
+      if (!HAN_RE.test(a.han) || !HAN_RE.test(b.han)) continue;
+      tokens[i + 1] = { han: a.han + b.han, vi: a.vi + ' ' + b.vi, kind: 'vpname', raw: (a.raw || a.vi) + '/' + (b.raw || b.vi) };
+      tokens.splice(i + 2, 1);
+    }
+
     // Quy tắc ngữ cảnh cho PARTICLE 的 (bản đơn — cụm dài như 高高的/美丽的大 đã khớp
     // trước đó): nghĩa thật phụ thuộc từ đứng trước/sau. VP gốc cho '/như thế/đích'.
     //   • 的 GIỮA 2 token Hán ĐỘC LẬP (A的B) -> SỞ HỮU CÁCH tiếng Việt: 'B của A'.
@@ -311,7 +324,15 @@ export function createEngine(dicts, settings = {}) {
       const prev = tokens[i - 1], next = tokens[i + 1];
       const hanEnd = prev && prev.han && HAN_RE.test(prev.han[prev.han.length - 1]);
       const hanStart = next && next.han && HAN_RE.test(next.han[0]);
-      if (hanEnd && hanStart) t.vi = 'của';
+      // SỞ HỮU CÁCH hay CÁCH GỌI? next là TÊN RIÊNG (kind 'name') hoặc cụm ghép từ
+      // token đơn chữ sau 的 (章岳) — '兩人口中的章岳' = 'hai người Chương Nhạc' (cách
+      // gọi, KHÔNG sở hữu) → bỏ 'của', đọc liền: prev + tên. Danh từ thường (爷爷,
+      // 淬炼) mới dùng 'của'.
+      const nextIsName = next && (next.kind === 'name' || next.kind === 'vpname');
+      if (hanEnd && hanStart) {
+        if (nextIsName) t.vi = '';   // cách gọi: 'hai người Chương Nhạc' — bỏ hẳn 的
+        else t.vi = 'của';
+      }
       // ĐẢO chỉ khi prev là TỪ HOÀN CHỈNH (>= 2 chữ): prev 1 chữ thường là MẢNH của
       // tên/cụm bị segmentation cắt rời (章|岳 + 的 + 两人口中) — đảo khi đó làm câu
       // lộn xộn ('Chương trong miệng hai người của nhạc'). prev>=2 chữ + next là từ
