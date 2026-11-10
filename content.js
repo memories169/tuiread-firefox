@@ -486,20 +486,24 @@
     btns.appendChild(right);
 
     const save = el('button', 'vp-save', 'Lưu');
-    save.addEventListener('click', () => { input.dataset.auto = '0'; saveOverride(state.han, input.value.trim()); });
+    save.title = 'Lưu vào bộ từ điển riêng của truyện này';
+    save.addEventListener('click', () => { input.dataset.auto = '0'; saveGlossary(state.han, input.value.trim()); });
     btns.appendChild(save);
-    const saveBook = el('button', undefined, 'Chỉ truyện này');
-    saveBook.addEventListener('click', () => { input.dataset.auto = '0'; saveGlossary(state.han, input.value.trim()); });
-    btns.appendChild(saveBook);
-    const revert = el('button', undefined, 'Bỏ vá');
-    revert.addEventListener('click', () => { input.dataset.auto = '0'; saveOverride(state.han, ''); });
-    btns.appendChild(revert);
+    const saveGlobal = el('button', undefined, 'Lưu vào từ điển VP');
+    saveGlobal.title = 'Áp dụng cho MỌI truyện (bản vá toàn cục)';
+    saveGlobal.addEventListener('click', () => { input.dataset.auto = '0'; saveOverride(state.han, input.value.trim()); });
+    btns.appendChild(saveGlobal);
+    if (overridesMap[state.han] !== undefined) {
+      const revert = el('button', undefined, 'Bỏ vá VP');
+      revert.addEventListener('click', () => { input.dataset.auto = '0'; saveOverride(state.han, ''); });
+      btns.appendChild(revert);
+    }
     const close = el('button', undefined, 'Đóng');
     close.addEventListener('click', closePop);
     btns.appendChild(close);
     pop.appendChild(btns);
 
-    pop.appendChild(el('div', 'vp-pop-hint', '◀ ▶ gộp token kề; bấm chip chữ Hán để thu vùng. Esc đóng.'));
+    pop.appendChild(el('div', 'vp-pop-hint', '◀ ▶ gộp token kề; bấm chip chữ Hán để thu vùng. ' + String.fromCharCode(34) + 'Lưu' + String.fromCharCode(34) + ' = từ điển riêng của truyện này; ' + String.fromCharCode(34) + 'Lưu vào từ điển VP' + String.fromCharCode(34) + ' = mọi truyện. Esc đóng.'));
     (document.body || document.documentElement).appendChild(pop);
     render();
 

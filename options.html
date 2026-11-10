@@ -66,6 +66,10 @@
     button:active { transform: translateY(1px); }
     button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
     #save, #ovApply, #siteSave { background: var(--ink-2); border-color: var(--ink-2); color: #fff; font-weight: 600; }
+    #glApply { background: var(--ink-2); border-color: var(--ink-2); color: #fff; font-weight: 600; }
+    #glApply:hover { background: var(--ink); border-color: var(--ink); }
+    #glDelete.danger { background: var(--card); color: var(--vermilion); border-color: var(--vermilion); }
+    #glDelete.danger:hover { background: var(--vermilion); color: #fff; }
     #save:hover, #ovApply:hover, #siteSave:hover { background: var(--ink); border-color: var(--ink); }
     #run { background: var(--vermilion); border-color: var(--vermilion); color: #fff; font-weight: 600; }
     #run:hover { background: #c9481f; border-color: #c9481f; }
@@ -159,6 +163,29 @@
     (<code>秦江=Tần Giang</code>), đừng vá một chữ (<code>江=Giang</code> sẽ hỏng cả 江南/长江).</p>
     <p>Mẹo: file xuất ra dùng đúng định dạng <code>Hán=nghĩa</code> của từ điển — muốn gộp hẳn vào
     <code>VietPhrase.txt</code> thì chỉ cần chép nội dung đó vào cuối file (khi tự chứa từ điển riêng).</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Từ điển riêng theo từng truyện (glossary per-book)</legend>
+    <p>Mỗi truyện có một bộ từ điển nhỏ riêng — nghĩa bạn nhập cho truyện này <strong>thắng từ điển VP gốc</strong>
+    và không ảnh hưởng truyện khác. Chọn truyện ở dropdown (bấm "Quét lại" sau khi đã mở truyện),
+    sửa ô bên dưới theo dạng <code>Hán=nghĩa</code> — <strong>tự lưu</strong> khi ngừng gõ ~1 giây.</p>
+    <div class="urlbar">
+      <select id="glBook" style="flex:1">
+        <option value="">— chưa có truyện nào —</option>
+      </select>
+      <button id="glRefresh">Quét lại</button>
+      <button id="glDelete" class="danger">Xoá bộ của truyện này</button>
+    </div>
+    <p id="glInfo">Đang tải…</p>
+    <textarea id="glText" placeholder="Mỗi dòng một mục, cùng định dạng từ điển:&#10;土豆=Khoai lang&#10;林动=Lâm Động"></textarea>
+    <p>
+      <button id="glApply">Lưu ngay (thay toàn bộ bộ này)</button>
+      <button id="glExport">Xuất file .txt</button>
+      <button id="glImport">Nhập file .txt</button>
+      <input type="file" id="glFile" accept=".txt,text/plain" style="display:none">
+      <span id="glMsg"></span>
+    </p>
   </fieldset>
 
   <fieldset>

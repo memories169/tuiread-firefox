@@ -339,6 +339,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Bộ glossary của MỘT sách (options page mở để sửa): msg { bookKey }.
+  if (msg.type === 'vp:glossary-get') {
+    (async () => {
+      const bookKey = String(msg.bookKey || '').trim();
+      if (!bookKey) return sendResponse({ ok: false, error: 'thiếu bookKey' });
+      const got = await callP(chrome.storage.local, 'get', 'glossaries');
+      sendResponse({ ok: true, glossary: (got.glossaries || {})[bookKey] || {} });
+    })().catch(err => sendResponse({ ok: false, error: errText(err) }));
+    return true;
+  }
+
   // Thêm site mới: popup da xin quyen truoc (permissions.request phai nam trong cú bam cua
   // user, goi tu popup); background chi lo dang ky content script vinh vien + chong inject doi.
   if (msg.type === 'vp:site-add') {

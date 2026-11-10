@@ -287,3 +287,140 @@ load();
 loadOverrides();
 loadSiteSelectors();
 loadUrlPref();
+
+// ---------------------------------------------------------------- Từ điển riêng theo truyện (F4)
+// Mỗi truyện = một bộ nhỏ trong storage (glossaries:{bookKey:{han:vi}}). Options liệt kê
+// các truyện đã có bộ, cho sửa/xuất/nhập/xoá từng bộ. Nghĩa ở đây THẮNG từ điển VP gốc
+// nhưng THUA bản vá toàn cục (Từ điển của tôi ở trên).
+function glMsg(text, isErr) {
+  const el = $('glMsg');
+  el.textContent = text || '';
+  el.style.color = isErr ? 'var(--vermilion)' : '';
+  setTimeout(() => { el.textContent = ''; }, 6000);
+}
+
+let glBooks = [];          // [{key, count}]
+let glDirty = false;
+let glSaveTimer = null;
+let glLastBook = null;     // bookKey đang mở trong ô
+
+async function loadGlossaryBooks() {
+  const resp = await ask({ type: 'vp:glossary-list' });
+  if (!resp || !resp.ok) {
+    $('glInfo').textContent = 'Không lấy được danh sách truyện: ' + ((resp && resp.error) || 'background không trả lời');
+    return;
+  }
+  glBooks = resp.books || [];
+  const sel = $('glBook');
+  const prev = sel.value;
+  sel.textContent = '';
+  if (!glBooks.length) {
+    sel.appendChild(new Option('— chưa có truyện nào —', ''));
+    $('glInfo').textContent = 'Chưa có bộ nào. Mở một truyện và bấm vào cụm đã dịch, rồi "Lưu" ở card là bộ đầu tiên xuất hiện.';
+    return;
+  }
+  for (const b of glBooks) sel.appendChild(new Option(b.key + ' (' + b.count + ' mục)', b.key));
+  if (prev && glBooks.some(b => b.key === prev)) sel.value = prev;
+  if (!sel.value) sel.value = glBooks[0].key;
+  loadGlossaryText(sel.value);
+}
+
+async function loadGlossaryText(bookKey) {
+  glLastBook = bookKey || null;
+  glDirty = false;
+  if (!bookKey) { $('glText').value = ''; $('glInfo').textContent = 'Chưa chọn truyện.'; return; }
+  // Lấy bộ hiện có: đi qua glossary-list chỉ có số đếm, cần dữ liệu -> đọc qua
+  // glossary-replace với entries rỗng thì xoá — không dùng. Thay vào đó dùng message
+  // vp:glossary-get (background trả về book map).
+  const resp = await ask({ type: 'vp:glossary-get', bookKey });
+  if (!resp || !resp.ok) { $('glInfo').textContent = 'Lỗi: ' + ((resp && resp.error) || 'không trả lời'); return; }
+  const entries = Object.entries(resp.glossary || {});
+  $('glInfo').textContent = bookKey + ': ' + entries.length + ' mục. Sửa xong ngừng gõ ~1s là tự lưu.';
+  $('glText').value = entries.map(([han, vi]) => han + '=' + vi).join('\n');
+}
+
+$('glBook').addEventListener('change', () => loadGlossaryText($('glBook').value));
+$('glRefresh').addEventListener('click', loadGlossaryBooks);
+
+$('glText').addEventListener('input', () => {
+  glDirty = true;
+  clearTimeout(glSaveTimer);
+  $('glInfo').textContent = 'Đang sửa… tự lưu khi ngừng gõ.';
+  glSaveTimer = setTimeout(() => applyGlossaryText('Đã tự lưu.'), 900);
+});
+
+function parseGlLines(text) {
+  const entries = [];
+  for (let line of String(text || '').split(/\r?\n/)) {
+    line = line.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq < 1) continue;
+    entries.push({ han: line.slice(0, eq).trim(), vi: line.slice(eq + 1).trim() });
+  }
+  return entries;
+}
+
+async function applyGlossaryText(note) {
+  const bookKey = $('glBook').value;
+  if (!bookKey) { glMsg('Chưa chọn truyện.', true); return false; }
+  const entries = parseGlLines($('glText').value);
+  const resp = await ask({ type: 'vp:glossary-replace', bookKey, entries });
+  if (!resp || !resp.ok) { glMsg('KHÔNG LƯU ĐƯỢC: ' + ((resp && resp.error) || 'background không trả lời'), true); return false; }
+  glDirty = false;
+  await loadGlossaryBooks();
+  glMsg(note + ' Bộ "' + bookKey + '" có ' + Object.keys(resp.glossary || {}).length + ' mục.');
+  return true;
+}
+
+$('glApply').addEventListener('click', () => applyGlossaryText('Đã lưu.'));
+
+$('glDelete').addEventListener('click', async () => {
+  const bookKey = $('glBook').value;
+  if (!bookKey) return;
+  // Xoá = replace bằng danh sách rỗng (vp:glossary-replace xoá bộ khi entries rỗng).
+  const resp = await ask({ type: 'vp:glossary-replace', bookKey, entries: [] });
+  if (!resp || !resp.ok) { glMsg('Không xoá được: ' + ((resp && resp.error) || 'không trả lời'), true); return; }
+  $('glText').value = '';
+  await loadGlossaryBooks();
+  glMsg('Đã xoá bộ của "' + bookKey + '".');
+});
+
+$('glExport').addEventListener('click', () => {
+  const lines = $('glText').value.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+  const name = ($('glBook').value || 'truyen').replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const header = '# TuiRead - từ điển riêng của truyện "' + $('glBook').value + '". Định dạng: 漢=nghĩa\n';
+  const blob = new Blob([header + lines.join('\n') + '\n'], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'tuiread-glossary-' + name + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+});
+
+$('glImport').addEventListener('click', () => $('glFile').click());
+
+$('glFile').addEventListener('change', () => {
+  const file = $('glFile').files && $('glFile').files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    $('glText').value = String(reader.result || '');
+    applyGlossaryText(`Đã nhập "${file.name}".`);
+  };
+  reader.onerror = () => glMsg('Không đọc được file.', true);
+  reader.readAsText(file, 'utf-8');
+  $('glFile').value = '';
+});
+
+// Glossary đổi ở nơi khác (card trên trang truyện) -> nạp lại danh sách + ô nếu không đang sửa.
+chrome.runtime.onMessage.addListener(msg => {
+  if (!msg || msg.type !== 'vp:store-changed' || !(msg.keys || []).includes('glossaries')) return;
+  if (glDirty) { glMsg('Bộ từ điển vừa đổi ở nơi khác — ô này đang có sửa chưa lưu.', true); return; }
+  loadGlossaryBooks();
+});
+
+loadGlossaryBooks();
