@@ -86,6 +86,7 @@
           if (!HAN_RE.test(text)) return NodeFilter.FILTER_REJECT;
           const parent = node.parentElement;
           if (!parent || SKIP_TAGS.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+          if (isOurs(node)) return NodeFilter.FILTER_REJECT;
           if (parent.closest('.vp-orig')) return NodeFilter.FILTER_REJECT;
           if (done.has(node)) return NodeFilter.FILTER_REJECT;
           return NodeFilter.FILTER_ACCEPT;
@@ -267,7 +268,7 @@
     if (timer) clearTimeout(timer);
     timer = setTimeout(async () => {
       timer = null;
-      const pending = [...queue].filter(n => n && n.parentNode && !done.has(n) && HAN_RE.test(n.nodeValue || ''));
+      const pending = [...queue].filter(n => n && n.parentNode && !done.has(n) && !isOurs(n) && HAN_RE.test(n.nodeValue || ''));
       queue.clear();
       if (pending.length) await translatePending(pending);
     }, 350);
@@ -279,8 +280,12 @@
       if (applying) return;
       for (const mutation of mutations) {
         for (const added of mutation.addedNodes) {
-          if (added.nodeType === Node.TEXT_NODE && added.nodeValue && HAN_RE.test(added.nodeValue)) { queue.add(added); continue; }
+          if (added.nodeType === Node.TEXT_NODE) {
+            if (added.nodeValue && HAN_RE.test(added.nodeValue) && !isOurs(added)) queue.add(added);
+            continue;
+          }
           if (!(added instanceof Element)) continue;
+          if (added.closest('.vp-pop, .vp-orig, .vp-vi, .vp-status-chip, .vp-highlight-layer')) continue;
           const walker = document.createTreeWalker(added, NodeFilter.SHOW_TEXT);
           for (let n = walker.nextNode(); n; n = walker.nextNode()) queue.add(n);
         }
@@ -315,6 +320,16 @@
     rule: 'quy tắc (số/ngày)',
     pa: 'âm Hán Việt — chưa có trong từ điển'
   };
+
+  // Text node nằm trong element DO TUIREAD tạo (card, chip, chữ Hán gốc, layer highlight,
+  // status chip) thì TUYỆT ĐỐI không đưa vào hàng đợi dịch — nếu không observer tự dịch
+  // chữ Hán trong card của chính mình (chip 汉 hiện nghĩa Việt sau 350ms).
+  function isOurs(n) {
+    try {
+      const p = n && n.parentElement;
+      return !!(p && p.closest && p.closest('.vp-pop, .vp-orig, .vp-vi, .vp-status-chip, .vp-highlight-layer'));
+    } catch { return false; }
+  }
 
   // el(tag, class, text): helper tạo element — bị mất trong lần cắt khối highlight,
   // mọi chỗ dựng card/chip/layer đều gọi nó.
@@ -468,11 +483,10 @@
       return v;
     }
 
-    let rendered = false;   // render() dau tien: vung ban dau (chua co thay doi -> khong setRange)
+    let lastRange = state.from + '.' + state.to;   // vung da render lan truoc (kể cả lần đầu)
     function render() {
       // Chip tung CHU Han: bam vao chu o dau/cuoi de THU nhe vung (F2 - sua tong tu).
       hanBox.textContent = '';
-      const before = state.from + '.' + state.to;
       const han = selHan();
       let charIdx = 0;
       for (let ti = state.from; ti <= state.to; ti++) {
@@ -512,8 +526,10 @@
       }
       const saveBtn = pop.querySelector('.vp-save');
       if (saveBtn) saveBtn.textContent = state.from === state.to ? 'Lưu' : 'Lưu (' + (state.to - state.from + 1) + ' từ)';
-      if (ctx.setRange && rendered && before !== state.from + '.' + state.to) ctx.setRange(state.from, state.to);
-      rendered = true;
+      // So voi vung LAN RENDER TRUOC (state co the bi nut ◀▶ doi truoc khi render goi,
+      // nen so trong render thi luon bang nhau -> setRange khong bao gio chay).
+      const nowRange = state.from + '.' + state.to;
+      if (ctx.setRange && nowRange !== lastRange) { lastRange = nowRange; ctx.setRange(state.from, state.to); }
     }
 
     const btns = el('div', 'vp-pop-btns');
