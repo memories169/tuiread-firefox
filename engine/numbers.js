@@ -19,28 +19,67 @@ export const LABELS = {
 export function isNumChar(ch) { return NUM_CHARS.test(ch); }
 export function isDigitChar(ch) { return DIGIT_ONLY_CHARS.test(ch); }
 
-// Chuỗi chỉ gồm 十百千 + 万亿亿 + chữ số -> số Ả Rập.
+// Chuỗi gồm 十百千 + 万萬亿億 + chữ số -> số Ả Rập.
+// Hỗ trợ dạng rút gọn: 六百三八=638, 一千三百=1300, 六百三=630, 一百二=120 —
+// chữ số trần đứng NGAY sau đơn vị mà tiếp theo là chữ số khác hoặc hết chuỗi
+// thì chiếm bậc đơn vị/10; các chữ số trần sau đó giảm bậc /10 từng bước.
+// Hạn chế (hiếm gặp trong số chương): 一万二 chưa rút gọn được (cần 一万二千).
 export function chineseNumberToArabic(input) {
   const s = String(input || '').trim();
   if (!s) return '';
-  if (/^[0-9]+$/.test(s)) return s;
+  if (/^[0-9]+$/.test(s)) return String(Number(s));
 
-  const hasUnit = [...s].some(ch => SMALL_UNITS[ch] || LARGE_UNITS[ch]);
+  const chars = [...s];
+  const hasUnit = chars.some(ch => SMALL_UNITS[ch] || LARGE_UNITS[ch]);
   if (!hasUnit) {
+    // Không có đơn vị -> đọc từng chữ số: 三八=38, 二零一八=2018.
     let out = '';
-    for (const ch of s) out += /[0-9]/.test(ch) ? ch : (DIGITS[ch] ?? '');
+    for (const ch of chars) {
+      const d = DIGITS[ch];
+      const v = d !== undefined ? d : (/[0-9]/.test(ch) ? Number(ch) : null);
+      if (v === null) return '';
+      out += String(v);
+    }
     return out;
   }
 
-  let result = 0, section = 0, number = 0, seen = false;
-  for (const ch of s) {
-    if (/[0-9]/.test(ch)) { number = Number(ch); seen = true; continue; }
-    if (DIGITS[ch] !== undefined) { number = DIGITS[ch]; seen = true; continue; }
-    if (SMALL_UNITS[ch]) { section += (number || 1) * SMALL_UNITS[ch]; number = 0; seen = true; continue; }
-    if (LARGE_UNITS[ch]) { section += number; result += section * LARGE_UNITS[ch]; section = 0; number = 0; seen = true; continue; }
+  let result = 0, section = 0, number = 0, mag = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    const next = chars[i + 1];
+    const after = chars[i + 2];
+    const d = DIGITS[ch], u = SMALL_UNITS[ch], L = LARGE_UNITS[ch];
+    const ascii = /[0-9]/.test(ch);
+    if (d !== undefined || ascii) {
+      const value = ascii ? Number(ch) : d;
+      const nextIsUnit = next !== undefined && (SMALL_UNITS[next] !== undefined || LARGE_UNITS[next] !== undefined);
+      if (mag > 0 && value > 0 && !nextIsUnit) {
+        number += value * mag;          // chữ số trần trong chuỗi rút gọn
+        mag = mag >= 10 ? mag / 10 : 0;
+      } else {
+        number = value; mag = 0;        // chữ số thường (đứng trước đơn vị) hoặc 零: hủy rút gọn
+      }
+      continue;
+    }
+    if (u) {
+      section += (number || 1) * u;
+      number = 0;
+      // Chữ số kế tiếp là "số trần" (tiếp nữa là chữ số khác hoặc hết chuỗi)
+      // -> nó chiếm bậc u/10, KHÔNG phải chữ số đứng trước đơn vị nữa.
+      mag = (next !== undefined && DIGITS[next] !== undefined && (after === undefined || DIGITS[after] !== undefined)) ? u / 10 : 0;
+      continue;
+    }
+    if (L) {
+      section += number;
+      result += (section || 1) * L;
+      section = 0; number = 0;
+      // 一万二 = 12000: chữ số sau đơn vị lớn cũng có bậc rút gọn (L/10).
+      mag = (next !== undefined && DIGITS[next] !== undefined) ? L / 10 : 0;
+      continue;
+    }
     return '';
   }
-  return seen ? String(result + section + number) : '';
+  return String(result + section + number);
 }
 
 // Đọc từng chữ số: 二零一八 -> 2018 (dùng cho <y>: năm, mã số).

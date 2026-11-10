@@ -68,7 +68,13 @@ export function parseRules(text) {
   const rules = [];
   const stats = { total: 0, skippedUnsupported: 0, skippedInvalid: 0 };
   for (const raw of String(text || '').split('\n')) {
-    const line = raw.trim();
+    let line = raw.trim();
+    // "!" đầu dòng = rule mạnh: thắng cả khi HOÀ độ dài với key VietPhrase.
+    // Dùng cho tiêu đề chương: dữ liệu 第X章 trong VietPhrase có ~15% mục sai số
+    // (VD 第一千五百四十八章 ghi 1549) và thiếu mục số Ả Rập >= 1000 — rule tính
+    // số chuẩn luôn đúng nên phải nhường KHÔNG cần dài hơn.
+    const strong = line.startsWith('!');
+    if (strong) line = line.slice(1).trim();
     if (!line || line.startsWith('#') || line.startsWith('//')) continue;
     const eq = line.indexOf('=');
     if (eq < 1) continue;
@@ -83,7 +89,7 @@ export function parseRules(text) {
     const refs = parts.filter(p => p.ref !== undefined).length;
     const captures = tokens.filter(t => t.t === 'num' || t.t === 'year' || t.t === 'label').length;
     if (refs !== captures) { stats.skippedInvalid++; continue; }
-    rules.push({ pattern, parts, tokens, order: rules.length });
+    rules.push({ pattern, parts, tokens, order: rules.length, strong });
   }
   return { rules, stats };
 }
@@ -188,7 +194,7 @@ export function createRuleEngine(ruleText) {
     for (const rule of candidates) {
       const hit = walk(rule.tokens, 0, text, start, []);
       if (!hit || hit.end === start) continue;
-      return { end: hit.end, text: render(rule.parts, hit.captures), rule: rule.pattern };
+      return { end: hit.end, text: render(rule.parts, hit.captures), rule: rule.pattern, strong: !!rule.strong };
     }
     return null;
   }

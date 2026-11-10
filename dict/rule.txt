@@ -17,6 +17,12 @@
 # Mỗi rule phải có ít nhất một ký tự thường làm neo và phải dùng mọi capture.
 # Engine tự chặn <n>/<y> nuốt một phần chuỗi số dài hơn; không tự thêm dấu phân cách số.
 # ===========================================================================
+#
+# PHẦN 0 — TIÊU ĐỀ CHƯƠNG (rule mạnh: thắng hoà với VietPhrase).
+# VietPhrase có sẵn ~10k mục 第X章 nhưng ~15% sai số (VD 1548 ghi 1549) và thiếu
+# mục số Ả Rập >= 1000. Rule tính số chuẩn luôn đúng nên đặt đầu file + cờ "!".
+# {0} = số Ả Rập đã convert; {1} = tên nhãn tiếng Việt (Chương/Quyển/...). Nhóm (:)? nuốt dấu ":"/"：" sau nhãn.
+!第<n:1-9><L>(:|：)? = {1} {0}:
 # PHẦN 1 — SỐ, THỜI GIAN, ĐƠN VỊ, KÍCH THƯỚC
 # ===========================================================================
 <y:3-4>年<n:1-2>月<n:1-3>(日|号|號) = ngày {2} tháng {1} năm {0}

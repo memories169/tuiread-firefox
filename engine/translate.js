@@ -150,7 +150,10 @@ export function createEngine(dicts, settings = {}) {
     let plainStart = 0, pos = 0;
     while (pos < text.length) {
       const hit = ruleEngine.matchAt(text, pos);
-      if (hit && longestVPLen(text, pos) < hit.end - pos) {
+      // Rule thường chỉ thắng VP khi DÀI hơn; rule mạnh ("!" đầu dòng trong rule.txt)
+      // thắng cả khi HOÀ độ dài — dữ liệu 第X章 trong VP có ~15% mục sai số, rule tính
+      // số chuẩn luôn đúng nên phải thắng khi hoà.
+      if (hit && (hit.strong || longestVPLen(text, pos) < hit.end - pos)) {
         if (plainStart < pos) out.push({ kind: 'plain', text: text.slice(plainStart, pos) });
         out.push({ kind: 'rule', text: hit.text, han: text.slice(pos, hit.end) });
         pos = hit.end;
