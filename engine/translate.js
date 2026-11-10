@@ -277,6 +277,23 @@ export function createEngine(dicts, settings = {}) {
       }
     }
 
+    // Gộp token ĐƠN CHỮ liền kề ngay TRƯỚC 的 thành 1 token (tên riêng 2 chữ chưa có
+    // trong dict bị tách rời: 章|岳|的|两人口中 — gộp thành 章岳 để rule 的 hoạt động
+    // đúng). Nghĩa ghép bằng khoảng cách: 'Chương' + 'nhạc' -> 'Chương nhạc'.
+    for (let i = 1; i < tokens.length - 1; i++) {
+      const a = tokens[i - 1], b = tokens[i], de = tokens[i + 1];
+      if (!a || !b || !de) continue;
+      if (de.han !== '的' || (de.kind !== 'vp1' && de.kind !== 'pa')) continue;
+      if (a.kind !== b.kind) continue;
+      if (a.kind !== 'vp1' && a.kind !== 'pa') continue;
+      if ([...a.han].length !== 1 || [...b.han].length !== 1) continue;
+      if (!HAN_RE.test(a.han) || !HAN_RE.test(b.han)) continue;
+      const joined = a.han + b.han;
+      tokens[i - 1] = { han: joined, vi: a.vi + ' ' + b.vi, kind: 'vp', raw: (a.raw || a.vi) + '/' + (b.raw || b.vi) };
+      tokens.splice(i, 1);   // bỏ token b — de token sau lùi về i
+      i--;                    // xét tiếp cặp trước đó (tên 3 chữ: 章|晓|峰)
+    }
+
     // Quy tắc ngữ cảnh cho PARTICLE 的 (bản đơn — cụm dài như 高高的/美丽的大 đã khớp
     // trước đó): nghĩa thật phụ thuộc từ đứng trước/sau. VP gốc cho '/như thế/đích'.
     //   • 的 GIỮA 2 token Hán ĐỘC LẬP (A的B) -> SỞ HỮU CÁCH tiếng Việt: 'B của A'.
@@ -294,14 +311,17 @@ export function createEngine(dicts, settings = {}) {
       const prev = tokens[i - 1], next = tokens[i + 1];
       const hanEnd = prev && prev.han && HAN_RE.test(prev.han[prev.han.length - 1]);
       const hanStart = next && next.han && HAN_RE.test(next.han[0]);
-      if (hanEnd && hanStart && flipable(prev.kind) && flipable(next.kind)) {
-        // Đảo A <-> B quanh 的; nghĩa của 的 luôn 'của'.
+      if (hanEnd && hanStart) t.vi = 'của';
+      // ĐẢO chỉ khi prev là TỪ HOÀN CHỈNH (>= 2 chữ): prev 1 chữ thường là MẢNH của
+      // tên/cụm bị segmentation cắt rời (章|岳 + 的 + 两人口中) — đảo khi đó làm câu
+      // lộn xộn ('Chương trong miệng hai người của nhạc'). prev>=2 chữ + next là từ
+      // có nghĩa -> 'B của A' đúng ngữ pháp Việt (章岳的爷爷 -> 'gia gia của Chương Nhạc'
+      // khi tên khớp trọn; '爷爷' prev 2 chữ -> 'gia gia của Chương|Nhạc' vẫn ổn hơn).
+      if (hanEnd && hanStart && flipable(prev.kind) && flipable(next.kind)
+          && [...prev.han].length >= 2 && [...next.han].length >= 1) {
         tokens[i - 1] = next;
         tokens[i + 1] = prev;
-        t.vi = 'của';
         i++;   // bỏ qua token B vừa đảo về trước — đã xử lý, tránh đảo ngược lại
-      } else if (hanEnd && hanStart) {
-        t.vi = 'của';   // 1 trong 2 bên không flipable (rule/raw/pa...) — chỉ đổi nghĩa
       }
     }
 
