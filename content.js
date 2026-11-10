@@ -351,60 +351,26 @@
   // Range.getClientRects() lên một layer pointer-events:none -> KHÔNG đụng vào DOM text,
   // nên không phá originals/observer và không kích hoạt dịch lại. Layer fixed + vẽ lại khi
   // scroll/resize vì rect là toạ độ khung nhìn.
-  // Tô nền xanh thẫm đúng đoạn vi đang sửa. Vẽ overlay rect từ Range.getClientRects()
-  // (cách duy nhất chạy chắc chắn trên Firefox). VÌ FONT SF PRO NẠP XONG LÀM TEXT REFLOW
-  // (rect cũ sai kích thước), re-vẽ lại 1 lần sau 350ms và mỗi lần scroll/resize.
-  let highlightLayer = null;
-  let highlightSource = null;
-  let highlightTimer = null;
-
+  // F1 (bản 2): đánh dấu từ đang chọn bằng ĐỔI MÀU CHỮ sang xanh cyan qua CSS Custom
+  // Highlight API — Range thật bám theo text khi reflow/scroll/zoom, không có lớp overlay
+  // nào để "lệch". Firefox 140+ hỗ trợ đầy đủ (từ FF 140). Card mở tới đâu tô tới đó.
   function clearHighlight() {
-    if (highlightTimer) { clearTimeout(highlightTimer); highlightTimer = null; }
-    if (highlightLayer) { highlightLayer.remove(); highlightLayer = null; }
-    highlightSource = null;
+    try { if (window.CSS && CSS.highlights) CSS.highlights.delete('vp-sel'); } catch { /* cũ */ }
   }
 
-  function showHighlightFor(node, start, end, recheck) {
+  function showHighlightFor(node, start, end) {
     clearHighlight();
     try {
       const range = document.createRange();
       range.setStart(node, Math.max(0, Math.min(start, node.nodeValue.length)));
       range.setEnd(node, Math.max(0, Math.min(end, node.nodeValue.length)));
-      const rects = [...range.getClientRects()];
-      if (!rects.length) return;
-      highlightLayer = el('div', 'vp-highlight-layer');
-      for (const r of rects) {
-        const box = el('div', 'vp-highlight');
-        box.style.left = r.left + 'px';
-        box.style.top = r.top + 'px';
-        box.style.width = r.width + 'px';
-        box.style.height = r.height + 'px';
-        highlightLayer.appendChild(box);
+      if (window.CSS && CSS.highlights && window.Highlight) {
+        CSS.highlights.set('vp-sel', new Highlight(range));
+        return;
       }
-      (document.body || document.documentElement).appendChild(highlightLayer);
-      highlightSource = { node, start, end };
-      // Font load xong làm text reflow -> rect ban đầu có thể sai; vẽ lại khi font sẵn sàng
-      // (nếu chưa) rồi một nhịp nữa cho chắc. recheck=true chỉ đặt từ lần gọi đầu.
-      if (recheck && document.fonts && document.fonts.status !== 'loaded') {
-        document.fonts.ready.then(() => {
-          highlightTimer = setTimeout(() => {
-            if (highlightSource) showHighlightFor(highlightSource.node, highlightSource.start, highlightSource.end, false);
-          }, 60);
-        });
-      } else if (recheck) {
-        highlightTimer = setTimeout(() => {
-          if (highlightSource) showHighlightFor(node, start, end, false);
-        }, 350);
-      }
-    } catch { /* node đã đổi giữa chừng — bỏ qua, card vẫn mở bình thường */ }
+      // Trình duyệt không có Custom Highlight: không tô gì (không dùng overlay lệch nữa).
+    } catch { /* node đã đổi giữa chừng — bỏ qua */ }
   }
-
-  window.addEventListener('scroll', () => {
-    if (highlightSource) showHighlightFor(highlightSource.node, highlightSource.start, highlightSource.end, false);
-  }, { passive: true, capture: true });
-  window.addEventListener('resize', () => {
-    if (highlightSource) showHighlightFor(highlightSource.node, highlightSource.start, highlightSource.end, false);
-  });
 
   async function saveOverride(han, vi) {
     const resp = await send({ type: 'vp:override-set', han, vi });
@@ -649,7 +615,7 @@
     const tokenStart = spans.find(([start, idx]) => idx === tokenIdx)?.[0] ?? -1;
     if (tokenStart >= 0) {
       const nextStart = spans.find(([start, idx]) => idx === tokenIdx + 1)?.[0] ?? node.nodeValue.length;
-      showHighlightFor(node, tokenStart, Math.max(tokenStart + 1, nextStart), true);
+      showHighlightFor(node, tokenStart, Math.max(tokenStart + 1, nextStart));
     }
 
     showEditor(e.clientX, e.clientY, { han: token[0], vi: token[1], kind: token[2] }, {

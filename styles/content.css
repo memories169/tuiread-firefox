@@ -120,28 +120,11 @@ body.vp-mode-han .vp-orig {
   background: #c9481f;
 }
 
-/* F1: highlight từ đang chọn để sửa — xanh thẫm (teal đậm của brand), KHÔNG sáng chói.
-   Ưu tiên CSS Custom Highlight API (::highlight) bám theo Range thật nên không bao giờ
-   trôi khi scroll/zoom; fallback là overlay .vp-highlight cho trình duyệt cũ. */
+/* F1 (bản 2): từ đang chọn = ĐỔI MÀU CHỮ xanh cyan qua CSS Custom Highlight API.
+   Range thật bám theo text — không có lớp overlay nên không bao giờ lệch. */
 ::highlight(vp-sel) {
-  background-color: rgba(18, 71, 75, 0.30);     /* #12474b ở 30% — nền xanh thẫm dịu */
-  text-decoration: underline;
-  text-decoration-color: rgba(18, 71, 75, 0.55);
-  text-underline-offset: 3px;
-}
-
-.vp-highlight-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483645;
-  pointer-events: none;
-}
-
-.vp-highlight {
-  position: absolute;
-  background: rgba(18, 71, 75, 0.28);          /* #12474b ở 28% — nền xanh thẫm dịu */
-  border-radius: 3px;
-  box-shadow: 0 0 0 1px rgba(18, 71, 75, 0.45); /* viền cùng tông để nổi trên nền sáng */
+  color: #00e5ff;                                /* cyan sáng, nổi trên mọi nền */
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.45);  /* quang nhẹ để đọc được trên nền trắng */
 }
 
 /* Font SF Pro Display cho toàn bộ bản dịch (span .vp-vi bọc quanh text node đã dịch)
