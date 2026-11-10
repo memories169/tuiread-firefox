@@ -112,6 +112,22 @@ body.vp-mode-han .vp-orig {
   background: #c9481f;
 }
 
+/* F1: highlight từ đang chọn để sửa — xanh thẫm (teal đậm của brand), KHÔNG sáng chói.
+   Layer fixed phủ lên đoạn text, pointer-events:none để không chắn click. */
+.vp-highlight-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483645;
+  pointer-events: none;
+}
+
+.vp-highlight {
+  position: absolute;
+  background: rgba(18, 71, 75, 0.28);          /* #12474b ở 28% — nền xanh thẫm dịu */
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(18, 71, 75, 0.45); /* viền cùng tông để nổi trên nền sáng */
+}
+
 .vp-pop-hint {
   color: #6d7a78;
   font-size: 11px;

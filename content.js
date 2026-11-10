@@ -279,7 +279,50 @@
   function closePop() {
     const pop = document.getElementById('vp-pop');
     if (pop) pop.remove();
+    clearHighlight();
   }
+
+  // ---------------------------------------------------------------- highlight từ đang chọn
+  // Tô nền xanh thẫm lên đúng đoạn đã dịch đang được sửa (F1). Vẽ bằng
+  // Range.getClientRects() lên một layer pointer-events:none -> KHÔNG đụng vào DOM text,
+  // nên không phá originals/observer và không kích hoạt dịch lại. Layer fixed + vẽ lại khi
+  // scroll/resize vì rect là toạ độ khung nhìn.
+  let highlightLayer = null;
+  let highlightSource = null;
+
+  function clearHighlight() {
+    if (highlightLayer) { highlightLayer.remove(); highlightLayer = null; }
+    highlightSource = null;
+  }
+
+  function showHighlightFor(node, start, end) {
+    clearHighlight();
+    try {
+      const range = document.createRange();
+      range.setStart(node, Math.max(0, Math.min(start, node.nodeValue.length)));
+      range.setEnd(node, Math.max(0, Math.min(end, node.nodeValue.length)));
+      const rects = [...range.getClientRects()];
+      if (!rects.length) return;
+      highlightLayer = el('div', 'vp-highlight-layer');
+      for (const r of rects) {
+        const box = el('div', 'vp-highlight');
+        box.style.left = r.left + 'px';
+        box.style.top = r.top + 'px';
+        box.style.width = r.width + 'px';
+        box.style.height = r.height + 'px';
+        highlightLayer.appendChild(box);
+      }
+      (document.body || document.documentElement).appendChild(highlightLayer);
+      highlightSource = { node, start, end };
+    } catch { /* node đã đổi giữa chừng — bỏ qua, card vẫn mở bình thường */ }
+  }
+
+  window.addEventListener('scroll', () => {
+    if (highlightSource) showHighlightFor(highlightSource.node, highlightSource.start, highlightSource.end);
+  }, { passive: true, capture: true });
+  window.addEventListener('resize', () => {
+    if (highlightSource) showHighlightFor(highlightSource.node, highlightSource.start, highlightSource.end);
+  });
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -388,6 +431,16 @@
     if (tokenIdx < 0) return;
     const token = tokens[tokenIdx];
     if (!token || token[2] === 'raw') return;   // đoạn không phải chữ Hán thì không cần vá
+
+    // F1: tô xanh thẫm đúng khoảng vi của token đang sửa (start = spans[tokenIdx][0],
+    // end = start token kế hoặc cuối chuỗi). vi của token có thể bị rút space đầu
+    // (needsSpace) nhưng spans ghi TRƯỚC khi rút nên dùng start là đủ chính xác.
+    const tokenStart = spans.find(([start, idx]) => idx === tokenIdx)?.[0] ?? -1;
+    if (tokenStart >= 0) {
+      const nextStart = spans.find(([start, idx]) => idx === tokenIdx + 1)?.[0] ?? node.nodeValue.length;
+      showHighlightFor(node, tokenStart, Math.max(tokenStart + 1, nextStart));
+    }
+
     showEditor(e.clientX, e.clientY, { han: token[0], vi: token[1], kind: token[2] });
   }
 
