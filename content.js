@@ -485,12 +485,12 @@
       box.className = 'vp-pop-input';
       box.type = 'text';
       wrap.appendChild(box);
-      pop.appendChild(wrap);
-      return box;
+      return { box, wrap };   // KHONG tu append — thu tu xep pop chi dinh o duoi
     }
-    const hanInput = row('Tiếng Trung');
-    const phienInput = row('Hán Việt');
-    const vpInput = row('Vietphrase');
+    const hanRow = row('Tiếng Trung');
+    const phienRow = row('Hán Việt');
+    const vpRow = row('Vietphrase');
+    const hanInput = hanRow.box, phienInput = phienRow.box, vpInput = vpRow.box;
 
     // auto: true = ô được nạp giá trị mặc định; user gõ -> false (render không ghi đè).
     const auto = { han: true, phien: true, vp: true };
@@ -585,7 +585,12 @@
     phienBtns.appendChild(caseBtn('Hoa 2 chữ đầu', 'hoa2', phienInput, '2 tiếng đầu viết hoa, còn lại thường — lưu âm Hán Việt vào từ điển truyện'));
     phienBtns.appendChild(caseBtn('Thường chữ cuối', 'thuongCuoi', phienInput, 'Tất cả tiếng viết hoa trừ tiếng cuối — lưu âm Hán Việt vào từ điển truyện'));
     phienBtns.appendChild(caseBtn('Hoa toàn bộ', 'hoaAll', phienInput, 'Viết hoa toàn bộ — lưu âm Hán Việt vào từ điển truyện'));
+
+    // Bố cục: Tiếng Trung -> Hán Việt -> [nút Hán Việt] -> Vietphrase -> [nút Vietphrase]
+    pop.appendChild(hanRow.wrap);
+    pop.appendChild(phienRow.wrap);
     pop.appendChild(phienBtns);
+    pop.appendChild(vpRow.wrap);
 
     // HÀNG NÚT VIETPHRASE: lấy nội dung Ô VIETPHRASE đang sửa (KHÔNG phải ô Hán Việt).
     // "Lưu" -> riêng truyện; "Lưu vào VP" -> bản vá toàn cục cho mọi truyện.
