@@ -122,9 +122,14 @@ body.vp-mode-han .vp-orig {
 
 /* F1 (bản 2): từ đang chọn = ĐỔI MÀU CHỮ xanh cyan qua CSS Custom Highlight API.
    Range thật bám theo text — không có lớp overlay nên không bao giờ lệch. */
-::highlight(vp-sel) {
-  color: #00e5ff;                                /* cyan sáng, nổi trên mọi nền */
-  text-shadow: 0 0 6px rgba(0, 229, 255, 0.45);  /* quang nhẹ để đọc được trên nền trắng */
+/* F1 bản 3: <mark class="vp-sel"> thật bọc token đang chọn — CSS thuần, chắc chắn hiện */
+mark.vp-sel {
+  background: transparent;          /* nền trang giữ nguyên */
+  color: #00e5ff;                   /* chữ cyan */
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.45);
+  font: inherit;                    /* không nhảy cỡ/weight so với dòng */
+  padding: 0;
+  margin: 0;
 }
 
 /* Font SF Pro Display cho toàn bộ bản dịch (span .vp-vi bọc quanh text node đã dịch)

@@ -243,6 +243,7 @@
   }
 
   function restore() {
+    clearHighlight();   // gỡ <mark> chọn từ (ghép lại node) trước khi trả nguyên trạng
     for (const [node, text] of originals) {
       if (node.parentNode) node.nodeValue = text;
       done.delete(node);
@@ -351,24 +352,39 @@
   // Range.getClientRects() lên một layer pointer-events:none -> KHÔNG đụng vào DOM text,
   // nên không phá originals/observer và không kích hoạt dịch lại. Layer fixed + vẽ lại khi
   // scroll/resize vì rect là toạ độ khung nhìn.
-  // F1 (bản 2): đánh dấu từ đang chọn bằng ĐỔI MÀU CHỮ sang xanh cyan qua CSS Custom
-  // Highlight API — Range thật bám theo text khi reflow/scroll/zoom, không có lớp overlay
-  // nào để "lệch". Firefox 140+ hỗ trợ đầy đủ (từ FF 140). Card mở tới đâu tô tới đó.
+  // F1 (bản 3): đánh dấu từ đang chọn bằng <mark class="vp-sel"> THẬT — tách text node
+  // thành [trước][token][sau], bọc token trong mark. DOM + CSS thuần, không phụ thuộc
+  // API nào cả, hiển thị chắc chắn. Khi đóng card: replaceWith(text) + normalize() =>
+  // text node ĐẦU TIÊN (chính là node gốc trong `originals`) hấp thụ lại toàn bộ chuỗi
+  // -> originals/done vẫn đúng, restore() trả trang về nguyên trạng như chưa từng bọc.
+  let selMark = null;
+
   function clearHighlight() {
-    try { if (window.CSS && CSS.highlights) CSS.highlights.delete('vp-sel'); } catch { /* cũ */ }
+    if (selMark && selMark.parentNode) {
+      const parent = selMark.parentNode;
+      const text = selMark.textContent;
+      selMark.replaceWith(document.createTextNode(text));
+      parent.normalize();   // gộp [trước][token][sau] về đúng node gốc ban đầu
+    }
+    selMark = null;
   }
 
   function showHighlightFor(node, start, end) {
     clearHighlight();
     try {
-      const range = document.createRange();
-      range.setStart(node, Math.max(0, Math.min(start, node.nodeValue.length)));
-      range.setEnd(node, Math.max(0, Math.min(end, node.nodeValue.length)));
-      if (window.CSS && CSS.highlights && window.Highlight) {
-        CSS.highlights.set('vp-sel', new Highlight(range));
-        return;
-      }
-      // Trình duyệt không có Custom Highlight: không tô gì (không dùng overlay lệch nữa).
+      if (!node || !node.parentNode) return;
+      const text = node.nodeValue;
+      start = Math.max(0, Math.min(start, text.length));
+      end = Math.max(start, Math.min(end, text.length));
+      if (end <= start) return;
+      node.nodeValue = text.slice(0, start);
+      const mark = document.createElement('mark');
+      mark.className = 'vp-sel';
+      mark.textContent = text.slice(start, end);
+      const afterNode = document.createTextNode(text.slice(end));
+      node.parentNode.insertBefore(mark, node.nextSibling);
+      node.parentNode.insertBefore(afterNode, mark.nextSibling);
+      selMark = mark;
     } catch { /* node đã đổi giữa chừng — bỏ qua */ }
   }
 
