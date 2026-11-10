@@ -15,7 +15,7 @@ import { DICT_VERSION, setKeyContext, makeKey, cacheGet, cachePut, cachePrune, c
 // MARKER PHIÊN BẢN ENGINE: in ra console của background/offscreen để xác minh bản
 // đang chạy; 'build' kèm trong MỌI response — content/popup cảnh báo khi lệch bản
 // (chống 'zombie engine view' sống sót qua Reload add-on trả kết quả cũ).
-const ENGINE_BUILD = '0.6.2';
+const ENGINE_BUILD = '0.6.3';
 console.log('[TuiRead] engine build ' + ENGINE_BUILD + ' (DICT_VERSION ' + DICT_VERSION + ', có quy tắc 的)');
 
 const DATA = { vp: null, names: null, pa: null, pronouns: null, t2s: null, rules: null, supplement: null };

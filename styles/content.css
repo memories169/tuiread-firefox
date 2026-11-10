@@ -32,14 +32,45 @@ body.vp-mode-han .vp-orig {
 }
 
 /* Card sửa nghĩa (tokenMap click-to-edit): bấm vào cụm đã dịch để vá từ điển ngay trên trang */
+/* THEME UI trên trang: biến mặc định (sáng) + data-vp-theme='cappuccino' (tối).
+   content.js đặt attr này lên <html> theo settings.uiTheme — card sửa chữ ăn theo. */
+:root {
+  --vp-pop-bg: #fffdf7;
+  --vp-pop-ink: #0b2b2f;
+  --vp-pop-ink2: #12474b;
+  --vp-pop-line: #d8ccb4;
+  --vp-pop-card: #f7f1e5;
+  --vp-pop-hover: #efe6d4;
+  --vp-pop-input-bg: #ffffff;
+  --vp-pop-muted: #6d7a78;
+  --vp-pop-vermilion: #e4572e;
+  --vp-pop-vermilion-hover: #c9481f;
+  --vp-pop-amber: #f2b33d;
+  --vp-pop-chipsep: #b9a97f;
+}
+:root[data-vp-theme='cappuccino'] {
+  --vp-pop-bg: #3a2a1f;
+  --vp-pop-ink: #f3e9dc;
+  --vp-pop-ink2: #d9c1a3;
+  --vp-pop-line: #5a4231;
+  --vp-pop-card: #2b1f18;
+  --vp-pop-hover: #46352a;
+  --vp-pop-input-bg: #2f2218;
+  --vp-pop-muted: #a89582;
+  --vp-pop-vermilion: #ff7a50;
+  --vp-pop-vermilion-hover: #ff8f68;
+  --vp-pop-amber: #ffc864;
+  --vp-pop-chipsep: #8a6a4f;
+}
+
 .vp-pop {
   position: fixed;
   z-index: 2147483646;
   max-width: 340px;
-  background: #fffdf7;
-  color: #0b2b2f;
-  border: 1px solid #d8ccb4;
-  border-top: 3px solid #e4572e;
+  background: var(--vp-pop-bg);
+  color: var(--vp-pop-ink);
+  border: 1px solid var(--vp-pop-line);
+  border-top: 3px solid var(--vp-pop-vermilion);
   border-radius: 10px;
   box-shadow: 0 6px 24px rgba(7, 30, 34, 0.3);
   padding: 10px 12px;
@@ -104,14 +135,14 @@ body.vp-mode-han .vp-orig {
   padding: 5px 7px;
   margin: 2px 0 8px;
   font: inherit;
-  color: #0b2b2f;
-  background: #fff;
-  border: 1px solid #d8ccb4;
+  color: var(--vp-pop-ink);
+  background: var(--vp-pop-input-bg);
+  border: 1px solid var(--vp-pop-line);
   border-radius: 6px;
 }
 
 .vp-pop-input:focus {
-  outline: 2px solid #f2b33d;
+  outline: 2px solid var(--vp-pop-amber);
   outline-offset: 1px;
 }
 
@@ -119,26 +150,26 @@ body.vp-mode-han .vp-orig {
   font: inherit;
   padding: 4px 12px;
   margin-right: 6px;
-  border: 1px solid #d8ccb4;
+  border: 1px solid var(--vp-pop-line);
   border-radius: 6px;
-  background: #f7f1e5;
-  color: #0b2b2f;
+  background: var(--vp-pop-card);
+  color: var(--vp-pop-ink);
   cursor: pointer;
 }
 
 .vp-pop-btns button:first-child {
-  background: #e4572e;
-  border-color: #e4572e;
+  background: var(--vp-pop-vermilion);
+  border-color: var(--vp-pop-vermilion);
   color: #fff;
   font-weight: 600;
 }
 
 .vp-pop-btns button:hover {
-  background: #efe6d4;
+  background: var(--vp-pop-hover);
 }
 
 .vp-pop-btns button:first-child:hover {
-  background: #c9481f;
+  background: var(--vp-pop-vermilion-hover);
 }
 
 /* F1 (bản 2): từ đang chọn = ĐỔI MÀU CHỮ xanh cyan qua CSS Custom Highlight API.
@@ -178,22 +209,22 @@ mark.vp-sel {
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  color: #0b2b2f;
+  color: var(--vp-pop-ink);
   cursor: pointer;
 }
 
 .vp-chip:hover {
-  background: #efe6d4;
-  border-color: #d8ccb4;
+  background: var(--vp-pop-hover);
+  border-color: var(--vp-pop-line);
 }
 
 .vp-chip-sep {
-  color: #b9a97f;
+  color: var(--vp-pop-chipsep);
   font-size: 11px;
 }
 
 .vp-pop-hint {
-  color: #6d7a78;
+  color: var(--vp-pop-muted);
   font-size: 11px;
   margin-top: 6px;
 }

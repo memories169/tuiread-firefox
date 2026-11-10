@@ -96,7 +96,7 @@ async function refresh() {
   }
   const page = await toPage({ type: 'vp:command', action: 'status' });
   renderStatus(
-    `Engine: sẵn sàng sau ${Math.round((status.loadMs || 0) / 100) / 10}s (build 0.6.2)\n` +
+    `Engine: sẵn sàng sau ${Math.round((status.loadMs || 0) / 100) / 10}s (build 0.6.3)\n` +
     `VP ${status.info.vp} · Names ${status.info.names} · PA ${status.info.pa}\n` +
     `Rules ${status.rules.active} hoạt động (${status.rules.unsupported} bỏ qua vì cần <ne|pn|w>)\n` +
     `繁→簡: ${status.t2s} ký tự\n` +

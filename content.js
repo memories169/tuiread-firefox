@@ -157,7 +157,7 @@
   // iframe/HTML moi tao) truoc khi dich lai. Lan thu 2/3 de phong truong hop load cham.
   // build của offscreen gửi kèm response; lệch → engine trả lời là VIEW CŨ sống
   // sót qua Reload (zombie) — kết quả không tin được, cảnh báo bằng chip.
-  const CONTENT_BUILD = '0.6.2';
+  const CONTENT_BUILD = '0.6.3';
   function warnBuildMismatch(resp) {
     if (resp && resp.build && resp.build !== CONTENT_BUILD) {
       console.warn('[TuiRead] engine view cũ (build ' + resp.build + ') đang trả lời — khởi động lại Firefox để sạch.');
@@ -835,6 +835,8 @@
         hostEnabled = false;
         restore();
       } else if (msg.action === 'retranslate') {
+        await loadConfig();   // nạp settings mới (theme, mode…) trước khi dịch lại
+        applyPageTheme();
         restore();
         await runOnce();
       }
@@ -864,15 +866,24 @@
     }
   }
 
+  // THEME UI trên trang (card sửa chữ, chip): settings.uiTheme từ Options.
+  function applyPageTheme() {
+    const theme = (settings && settings.uiTheme) || '';
+    const root = document.documentElement;
+    if (theme) root.dataset.vpTheme = theme;
+    else root.removeAttribute('data-vp-theme');
+  }
+
   async function init() {
     keepAliveStart();
     registerFonts();
     await loadConfig();
+    applyPageTheme();
     if (!hostEnabled) return;
     // MARKER BẢN: chip biến mất sau 4s; nhìn chip biết chính xác content script
     // đang chạy là bản nào (khi nghi vấn nạp nhầm .xpi / tab chưa F5).
-    setStatusChip('TuiRead content 0.6.2');
-    setTimeout(() => { const c = document.getElementById('vp-status-chip'); if (c && c.textContent === 'TuiRead content 0.6.2') c.remove(); }, 4000);
+    setStatusChip('TuiRead content 0.6.3');
+    setTimeout(() => { const c = document.getElementById('vp-status-chip'); if (c && c.textContent === 'TuiRead content 0.6.3') c.remove(); }, 4000);
     await runOnce();
     startObserver();
   }
