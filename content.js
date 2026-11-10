@@ -504,16 +504,36 @@
       for (let i = state.from; i <= state.to; i++) h += ctx.tokens[i][0];
       return h;
     }
+    // Ghep nghia/am cua vung chon CO SUA KHOANG TRANG theo needsSpace (nhan ban logic
+    // engine khi ghep out): 2 tieng chi le ma ca 2 deu chu cai thi chen 1 space —
+    // "Trải qua"+"lôi hỏa" -> "Trải qua lôi hỏa", khong con 'qualôi'/'hỏanhư'.
+    // Dau chấm/phẩy + dấu mở/đóng không chen space, đúng như văn bản trên trang.
+    const CLOSE_NO_SPACE = new Set('.,!?:;)]}》〉"\'');
+    function needsSpaceJoin(a, b) {
+      if (!a || !b) return '';
+      if (OPEN_SET.has(a)) return '';
+      if (CLOSE_NO_SPACE.has(b)) return '';
+      if ('.!?,;:'.includes(a)) return ' ';
+      if (/[\\p{L}0-9]/u.test(a) && /[\\p{L}0-9]/u.test(b)) return ' ';
+      return '';
+    }
+    const OPEN_SET = new Set('([「《〈"\'');
     function selDefaultVi() {
       let v = '';
-      for (let i = state.from; i <= state.to; i++) v += ctx.tokens[i][1];
+      for (let i = state.from; i <= state.to; i++) {
+        const vi = ctx.tokens[i][1];
+        if (!vi) continue;
+        v += needsSpaceJoin(v.slice(-1), vi[0]) + vi;
+      }
       return v;
     }
     function selPhien() {
       let p = '';
       for (let i = state.from; i <= state.to; i++) {
         const t = ctx.tokens[i];
-        p += (t.length >= 4 ? t[3] : (ctx.phienOf ? ctx.phienOf(t[0]) : '')) + ' ';
+        const am = t.length >= 4 ? t[3] : (ctx.phienOf ? ctx.phienOf(t[0]) : '');
+        if (!am) continue;
+        p += (p ? ' ' : '') + am;
       }
       return p.trim();
     }
