@@ -440,20 +440,65 @@
     head.appendChild(el('span', 'vp-pop-kind', KIND_LABELS[token.kind] || token.kind));
     pop.appendChild(head);
 
-    // Am Han Viet cua vung chon (F-am): doc tu token[3] (offscreen tra phienOf); token cu
-    // chi 3 phan tu thi tinh tam bang phienOf tu token.han.
-    const phien = el('div', 'vp-pop-phien');
-    pop.appendChild(phien);
+    // Hàng công cụ vùng chọn: ◀ ▶ gộp token kề, Thu gọn về 1 token.
+    const regionRow = el('div', 'vp-pop-btns');
+    const left = el('button', undefined, '◀');
+    left.title = 'Gộp thêm token bên trái';
+    left.addEventListener('click', () => {
+      if (state.from > 0 && ctx.tokens[state.from - 1][2] !== 'raw') {
+        state.from--;
+        auto.han = auto.phien = auto.vp = true;   // đổi vùng -> nạp lại giá trị mặc định
+        render();
+      }
+    });
+    regionRow.appendChild(left);
+    const shrink = el('button', undefined, 'Thu gọn');
+    shrink.title = 'Thu về đúng token đầu';
+    shrink.addEventListener('click', () => {
+      if (state.to !== state.from) {
+        state.to = state.from;
+        auto.han = auto.phien = auto.vp = true;
+        render();
+      }
+    });
+    regionRow.appendChild(shrink);
+    const right = el('button', undefined, '▶');
+    right.title = 'Gộp thêm token bên phải';
+    right.addEventListener('click', () => {
+      if (state.to + 1 < ctx.tokens.length && ctx.tokens[state.to + 1][2] !== 'raw') {
+        state.to++;
+        auto.han = auto.phien = auto.vp = true;
+        render();
+      }
+    });
+    regionRow.appendChild(right);
+    pop.appendChild(regionRow);
 
-    const cur = el('div', 'vp-pop-cur');
-    pop.appendChild(cur);
+    // Ba khung nhập theo bố cục user yêu cầu (đều sửa được tự do):
+    //   Tiếng Trung — chữ Hán của vùng chọn (chốt khoá lưu; sửa được nếu tách sai)
+    //   Hán Việt    — âm Hán Việt của vùng chọn
+    //   Vietphrase  — nghĩa tiếng Việt đang hiển thị
+    function row(labelText) {
+      const wrap = el('div', 'vp-pop-row');
+      wrap.appendChild(el('span', 'vp-pop-label', labelText));
+      const box = document.createElement('input');
+      box.className = 'vp-pop-input';
+      box.type = 'text';
+      wrap.appendChild(box);
+      pop.appendChild(wrap);
+      return box;
+    }
+    const hanInput = row('Tiếng Trung');
+    const phienInput = row('Hán Việt');
+    const vpInput = row('Vietphrase');
 
-    const input = document.createElement('input');
-    input.className = 'vp-pop-input';
-    input.type = 'text';
-    pop.appendChild(input);
+    // auto: true = ô được nạp giá trị mặc định; user gõ -> false (render không ghi đè).
+    const auto = { han: true, phien: true, vp: true };
+    hanInput.addEventListener('input', () => { auto.han = false; state.han = hanInput.value.trim(); });
+    phienInput.addEventListener('input', () => { auto.phien = false; });
+    vpInput.addEventListener('input', () => { auto.vp = false; });
 
-    // Vung chon hien tai: han ghep tu tokens[from..to], mac dinh la nghia ghep cua chung.
+    // Vung chon hien tai: han ghep tu tokens[from..to], nghia/am tuong ung.
     function selHan() {
       let h = '';
       for (let i = state.from; i <= state.to; i++) h += ctx.tokens[i][0];
@@ -464,10 +509,40 @@
       for (let i = state.from; i <= state.to; i++) v += ctx.tokens[i][1];
       return v;
     }
+    function selPhien() {
+      let p = '';
+      for (let i = state.from; i <= state.to; i++) {
+        const t = ctx.tokens[i];
+        p += (t.length >= 4 ? t[3] : (ctx.phienOf ? ctx.phienOf(t[0]) : '')) + ' ';
+      }
+      return p.trim();
+    }
 
-    let lastRange = state.from + '.' + state.to;   // vung da render lan truoc (kể cả lần đầu)
+    // "Chữ" = TIẾNG (tách bằng khoảng trắng): "lâm động thiên hạ" ->
+    //   hoa2       : "Lâm Động thiên hạ"   (2 tiếng đầu hoa, còn lại thường)
+    //   thuongCuoi : "Lâm Động Thiên hạ"   (tất cả hoa TRỪ tiếng cuối)
+    //   hoaAll     : "LÂM ĐỘNG THIÊN HẠ"   (in hoa toàn bộ)
+    function capWord(w) { return w ? w.charAt(0).toLocaleUpperCase('vi') + w.slice(1) : w; }
+    function applyCase(mode, box) {
+      const words = box.value.trim().split(/\s+/).filter(Boolean);
+      if (!words.length) return box.value.trim();
+      let out;
+      if (mode === 'hoa2') out = words.map((w, i) => (i < 2 ? capWord(w) : w.toLocaleLowerCase('vi'))).join(' ');
+      else if (mode === 'thuongCuoi') out = words.map((w, i) => (i < words.length - 1 ? capWord(w) : w.toLocaleLowerCase('vi'))).join(' ');
+      else out = box.value.trim().toLocaleUpperCase('vi');
+      box.value = out;
+      return out;
+    }
+    function caseBtn(label, mode, box, title) {
+      const b = el('button', undefined, label);
+      b.title = title;
+      b.addEventListener('click', () => applyCase(mode, box));
+      return b;
+    }
+
+    let lastRange = state.from + '.' + state.to;
     function render() {
-      // Chip tung CHU Han: bam vao chu o dau/cuoi de THU nhe vung (F2 - sua tong tu).
+      // Chip từng CHỮ Hán: bấm để thu vùng chọn (F2).
       hanBox.textContent = '';
       const han = selHan();
       let charIdx = 0;
@@ -478,11 +553,10 @@
           chip.textContent = ch;
           const ci = charIdx;
           chip.addEventListener('click', () => {
-            // bam chip nao: neu la chu dau -> bo token dau; chu cuoi -> bo token cuoi;
-            // chip giua -> thu ve dung token do (from=to=ti).
             if (ci === 0 && state.from < state.to) state.from++;
             else if (ci + 1 >= [...han].length && state.to > state.from) state.to--;
             else { state.from = ti; state.to = ti; }
+            auto.han = auto.phien = auto.vp = true;
             render();
           });
           hanBox.appendChild(chip);
@@ -490,106 +564,55 @@
         }
         if (ti < state.to) hanBox.appendChild(el('span', 'vp-chip-sep', '·'));
       }
-      state.han = han;
-      let ph = '';
-      for (let i = state.from; i <= state.to; i++) {
-        const t = ctx.tokens[i];
-        ph += (t.length >= 4 ? t[3] : (ctx.phienOf ? ctx.phienOf(t[0]) : '')) + ' ';
-      }
-      phien.textContent = ph.trim();
-      phien.style.display = ph.trim() ? '' : 'none';
+      if (auto.han) { state.han = han; hanInput.value = han; }
+      if (auto.phien) phienInput.value = selPhien();
       const hasOv = overridesMap[state.han] !== undefined;
-      cur.textContent = hasOv && overridesMap[state.han] !== selDefaultVi()
-        ? 'Mặc định từ điển: ' + selDefaultVi()
-        : '';
-      if (input.value === '' || input.dataset.auto === '1') {
-        input.value = hasOv ? overridesMap[state.han] : selDefaultVi();
-        input.dataset.auto = '1';
-      }
-      const saveBtn = pop.querySelector('.vp-save');
-      if (saveBtn) saveBtn.textContent = state.from === state.to ? 'Lưu' : 'Lưu (' + (state.to - state.from + 1) + ' từ)';
-      // So voi vung LAN RENDER TRUOC (state co the bi nut ◀▶ doi truoc khi render goi,
-      // nen so trong render thi luon bang nhau -> setRange khong bao gio chay).
+      if (auto.vp) vpInput.value = hasOv ? overridesMap[state.han] : selDefaultVi();
+      pop.querySelectorAll('.vp-save').forEach(b => {
+        b.textContent = state.from === state.to ? 'Lưu' : 'Lưu (' + (state.to - state.from + 1) + ' từ)';
+      });
+      // So voi vung LAN RENDER TRUOC -> highlight di theo vung khi mo rong/thu.
       const nowRange = state.from + '.' + state.to;
       if (ctx.setRange && nowRange !== lastRange) { lastRange = nowRange; ctx.setRange(state.from, state.to); }
     }
 
-    const btns = el('div', 'vp-pop-btns');
-    // Mo rong vung sang token ke ben trai/phai (khong gioi han so lan bam).
-    const left = el('button', undefined, '◀');
-    left.title = 'Gộp thêm token bên trái';
-    left.addEventListener('click', () => {
-      if (state.from > 0 && ctx.tokens[state.from - 1][2] !== 'raw') { state.from--; render(); }
-    });
-    btns.appendChild(left);
-    const shrink = el('button', undefined, 'Thu gọn');
-    shrink.title = 'Thu về đúng token đầu';
-    shrink.addEventListener('click', () => { state.to = state.from; render(); });
-    btns.appendChild(shrink);
-    const right = el('button', undefined, '▶');
-    right.title = 'Gộp thêm token bên phải';
-    right.addEventListener('click', () => {
-      if (state.to + 1 < ctx.tokens.length && ctx.tokens[state.to + 1][2] !== 'raw') { state.to++; render(); }
-    });
-    btns.appendChild(right);
+    // HÀNG NÚT HÁN VIỆT: lấy nội dung Ô HÁN VIỆT đang sửa, lưu vào từ điển RIÊNG truyện.
+    const phienBtns = el('div', 'vp-pop-btns');
+    const phienSave = el('button', 'vp-save', 'Lưu');
+    phienSave.title = 'Lưu âm Hán Việt đang sửa vào từ điển riêng của truyện này';
+    phienSave.addEventListener('click', () => saveGlossary(state.han, phienInput.value.trim()));
+    phienBtns.appendChild(phienSave);
+    phienBtns.appendChild(caseBtn('Hoa 2 chữ đầu', 'hoa2', phienInput, '2 tiếng đầu viết hoa, còn lại thường — lưu âm Hán Việt vào từ điển truyện'));
+    phienBtns.appendChild(caseBtn('Thường chữ cuối', 'thuongCuoi', phienInput, 'Tất cả tiếng viết hoa trừ tiếng cuối — lưu âm Hán Việt vào từ điển truyện'));
+    phienBtns.appendChild(caseBtn('Hoa toàn bộ', 'hoaAll', phienInput, 'Viết hoa toàn bộ — lưu âm Hán Việt vào từ điển truyện'));
+    pop.appendChild(phienBtns);
 
-    // Ba nút kiểu chữ: biến đổi nội dung ô nhập theo vùng đang chọn rồi lưu NGAY vào
-    // từ điển riêng của truyện (glossary per-book). "Chữ" ở đây là TIẾNG (tách bằng
-    // khoảng trắng): "lâm động thiên hạ" →
-    //   Hoa 2 chữ đầu  : "Lâm Động thiên hạ"  (2 tiếng đầu viết hoa, còn lại thường)
-    //   Thường chữ cuối: "Lâm Động Thiên hạ"  (tất cả viết hoa TRỪ tiếng cuối)
-    //   Hoa toàn bộ    : "LÂM ĐỘNG THIÊN HẠ"  (in hoa toàn bộ)
-    function capWord(w) { return w ? w.charAt(0).toLocaleUpperCase('vi') + w.slice(1) : w; }
-    function applyCase(mode) {
-      const trimmed = input.value.trim();
-      const words = trimmed.split(/\s+/).filter(Boolean);
-      if (!words.length) return;
-      let out;
-      if (mode === 'hoa2') {
-        out = words.map((w, i) => (i < 2 ? capWord(w) : w.toLocaleLowerCase('vi'))).join(' ');
-      } else if (mode === 'thuongCuoi') {
-        out = words.map((w, i) => (i < words.length - 1 ? capWord(w) : w.toLocaleLowerCase('vi'))).join(' ');
-      } else {
-        out = trimmed.toLocaleUpperCase('vi');
-      }
-      input.value = out;
-      input.dataset.auto = '0';   // coi như user đã sửa: render() không ghi đè lại
-      saveGlossary(state.han, out);
-    }
-    const caseRow = el('div', 'vp-pop-btns');
-    const bHoa2 = el('button', undefined, 'Hoa 2 chữ đầu');
-    bHoa2.title = '2 tiếng đầu viết hoa, phần còn lại viết thường — lưu vào từ điển truyện này';
-    bHoa2.addEventListener('click', () => applyCase('hoa2'));
-    caseRow.appendChild(bHoa2);
-    const bThuong = el('button', undefined, 'Thường chữ cuối');
-    bThuong.title = 'Tất cả tiếng viết hoa trừ tiếng cuối — lưu vào từ điển truyện này';
-    bThuong.addEventListener('click', () => applyCase('thuongCuoi'));
-    caseRow.appendChild(bThuong);
-    const bHoaAll = el('button', undefined, 'Hoa toàn bộ');
-    bHoaAll.title = 'Viết hoa toàn bộ — lưu vào từ điển truyện này';
-    bHoaAll.addEventListener('click', () => applyCase('hoaAll'));
-    caseRow.appendChild(bHoaAll);
-
-    const save = el('button', 'vp-save', 'Lưu');
-    save.title = 'Lưu vào bộ từ điển riêng của truyện này';
-    save.addEventListener('click', () => { input.dataset.auto = '0'; saveGlossary(state.han, input.value.trim()); });
-    btns.appendChild(save);
-    const saveGlobal = el('button', undefined, 'Lưu vào từ điển VP');
-    saveGlobal.title = 'Áp dụng cho MỌI truyện (bản vá toàn cục)';
-    saveGlobal.addEventListener('click', () => { input.dataset.auto = '0'; saveOverride(state.han, input.value.trim()); });
-    btns.appendChild(saveGlobal);
+    // HÀNG NÚT VIETPHRASE: lấy nội dung Ô VIETPHRASE đang sửa (KHÔNG phải ô Hán Việt).
+    // "Lưu" -> riêng truyện; "Lưu vào VP" -> bản vá toàn cục cho mọi truyện.
+    const vpBtns = el('div', 'vp-pop-btns');
+    vpBtns.appendChild(caseBtn('Hoa 2 chữ đầu', 'hoa2', vpInput, '2 tiếng đầu viết hoa, còn lại thường — áp cho nghĩa Vietphrase đang sửa'));
+    vpBtns.appendChild(caseBtn('Thường chữ cuối', 'thuongCuoi', vpInput, 'Tất cả tiếng viết hoa trừ tiếng cuối — áp cho nghĩa Vietphrase đang sửa'));
+    vpBtns.appendChild(caseBtn('Hoa toàn bộ', 'hoaAll', vpInput, 'Viết hoa toàn bộ — áp cho nghĩa Vietphrase đang sửa'));
+    const vpSave = el('button', 'vp-save', 'Lưu');
+    vpSave.title = 'Lưu nghĩa tiếng Việt đang sửa vào từ điển riêng của truyện này';
+    vpSave.addEventListener('click', () => saveGlossary(state.han, vpInput.value.trim()));
+    vpBtns.appendChild(vpSave);
+    const saveGlobal = el('button', undefined, 'Lưu vào VP');
+    saveGlobal.title = 'Lưu nghĩa tiếng Việt đang sửa cho MỌI truyện (bản vá toàn cục)';
+    saveGlobal.addEventListener('click', () => saveOverride(state.han, vpInput.value.trim()));
+    vpBtns.appendChild(saveGlobal);
     if (overridesMap[state.han] !== undefined) {
       const revert = el('button', undefined, 'Bỏ vá VP');
-      revert.addEventListener('click', () => { input.dataset.auto = '0'; saveOverride(state.han, ''); });
-      btns.appendChild(revert);
+      revert.title = 'Xoá bản vá toàn cục của từ này';
+      revert.addEventListener('click', () => saveOverride(state.han, ''));
+      vpBtns.appendChild(revert);
     }
     const close = el('button', undefined, 'Đóng');
     close.addEventListener('click', closePop);
-    btns.appendChild(close);
-    pop.appendChild(btns);
-    pop.appendChild(caseRow);   // 3 nút kiểu chữ (lưu glossary truyện) — hàng riêng cho gọn
+    vpBtns.appendChild(close);
+    pop.appendChild(vpBtns);
 
-    pop.appendChild(el('div', 'vp-pop-hint', '◀ ▶ gộp token kề; bấm chip chữ Hán để thu vùng. ' + String.fromCharCode(34) + 'Lưu' + String.fromCharCode(34) + ' = từ điển riêng của truyện này; ' + String.fromCharCode(34) + 'Lưu vào từ điển VP' + String.fromCharCode(34) + ' = mọi truyện. Esc đóng.'));
+    pop.appendChild(el('div', 'vp-pop-hint', 'Sửa trực tiếp trong ô; nút kiểu chữ biến đổi nội dung ô của hàng nó rồi lưu. ◀ ▶ / bấm chip chữ Hán để đổi vùng chọn. Esc đóng.'));
     (document.body || document.documentElement).appendChild(pop);
     render();
 
@@ -597,9 +620,8 @@
     const height = pop.offsetHeight || 140;
     pop.style.left = Math.max(8, Math.min(x - 20, (window.innerWidth || 1024) - width - 8)) + 'px';
     pop.style.top = Math.max(8, Math.min(y + 16, (window.innerHeight || 768) - height - 8)) + 'px';
-    input.focus();
+    hanInput.focus();
   }
-
 
   // caretAt(x, y): tìm text node + vị trí ký tự tại toạ độ màn hình (đường vào chính của
   // click-to-edit). Firefox có caretRangeFromPoint; chuẩn là caretPositionFromPoint.
