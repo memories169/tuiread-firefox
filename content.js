@@ -858,8 +858,8 @@
     if (!hostEnabled) return;
     // MARKER BẢN: chip biến mất sau 4s; nhìn chip biết chính xác content script
     // đang chạy là bản nào (khi nghi vấn nạp nhầm .xpi / tab chưa F5).
-    setStatusChip('TuiRead content 0.5.0');
-    setTimeout(() => { const c = document.getElementById('vp-status-chip'); if (c && c.textContent === 'TuiRead content 0.5.0') c.remove(); }, 4000);
+    setStatusChip('TuiRead content 0.5.1');
+    setTimeout(() => { const c = document.getElementById('vp-status-chip'); if (c && c.textContent === 'TuiRead content 0.5.1') c.remove(); }, 4000);
     await runOnce();
     startObserver();
   }

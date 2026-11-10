@@ -10,11 +10,11 @@
 
 import { decode, FILES, parseDict, parseDictBuffer, parseT2S, createRuleEngine, createEngine } from './engine/index.js';
 import { maxKeyLength } from './engine/dict.js';
-import { DICT_VERSION, setKeyContext, makeKey, cacheGet, cachePut, cachePrune, cacheStats } from './db.js';
+import { DICT_VERSION, setKeyContext, makeKey, cacheGet, cachePut, cachePrune, cacheStats, cacheClear } from './db.js';
 
 // MARKER PHIÊN BẢN ENGINE: in ra console của background/offscreen để xác minh bản
 // đang chạy (v0.5.0 = có quy tắc 的: gộp token đơn chữ trước 的 + guard flip).
-console.log('[TuiRead] engine build 0.5.0 (DICT_VERSION ' + DICT_VERSION + ', có quy tắc 的)');
+console.log('[TuiRead] engine build 0.5.1 (DICT_VERSION ' + DICT_VERSION + ', có quy tắc 的)');
 
 const DATA = { vp: null, names: null, pa: null, pronouns: null, t2s: null, rules: null, supplement: null };
 // MaxKeyLength tính MỘT LẦN lúc parse, rebuild sau đó chỉ dùng lại (mỗi lần Lưu tiết kiệm ~200ms quét 1M key).
@@ -309,6 +309,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       await rebuildSerialized('glossaries');
       sendResponse({ ok: true });
     })().catch(err => { fail(err); sendResponse({ ok: false, error: String(err && err.message || err) }); });
+    return true;
+  }
+
+  // Xoá toàn bộ cache dịch (IndexedDB + mem) — dùng khi nghi kết quả cũ còn dính
+  // (nạp nhầm bản, bump version chưa ăn) hoặc muốn dịch lại từ đầu bằng engine hiện tại.
+  if (msg.type === 'vp:cache-clear') {
+    (async () => {
+      await cacheClear();
+      sendResponse({ ok: true });
+    })().catch(err => sendResponse({ ok: false, error: String(err && err.message || err) }));
     return true;
   }
 

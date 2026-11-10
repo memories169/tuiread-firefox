@@ -53,6 +53,21 @@ function fnv1a(text) {
   return h.toString(16).padStart(8, '0');
 }
 
+// Xoá TOÀN BỘ cache dịch (store 'translations') + cache mem. Dùng tay từ popup
+// ('Xoá cache dịch') — không bao giờ gọi tự động: bump DICT_VERSION là đủ cho các
+// thay đổi engine/dict.
+export async function cacheClear() {
+  mem.clear();
+  const db = await openDB();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).clear();
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
 // Gọi sau mỗi lần dựng engine (boot / đổi settings / đổi override): mọi key cũ vô nghĩa.
 export function setKeyContext(parts) {
   keyCtx = parts.join('|');

@@ -92,7 +92,7 @@ async function refresh() {
   }
   const page = await toPage({ type: 'vp:command', action: 'status' });
   renderStatus(
-    `Engine: sẵn sàng sau ${Math.round((status.loadMs || 0) / 100) / 10}s (build 0.5.0)\n` +
+    `Engine: sẵn sàng sau ${Math.round((status.loadMs || 0) / 100) / 10}s (build 0.5.1)\n` +
     `VP ${status.info.vp} · Names ${status.info.names} · PA ${status.info.pa}\n` +
     `Rules ${status.rules.active} hoạt động (${status.rules.unsupported} bỏ qua vì cần <ne|pn|w>)\n` +
     `繁→簡: ${status.t2s} ký tự\n` +
@@ -126,6 +126,13 @@ $('toggle').addEventListener('click', async () => {
   await ask({ type: 'vp:ensure' });
   await toPage({ type: 'vp:command', action: enabled ? 'enable' : 'disable' });
   renderToggle();
+});
+
+$('clear-cache').addEventListener('click', async () => {
+  await ask({ type: 'vp:cache-clear' });
+  await ask({ type: 'vp:ensure' });
+  await toPage({ type: 'vp:command', action: 'retranslate' });
+  renderStatus('Đã xoá cache dịch — trang đang được dịch lại bằng engine hiện tại.');
 });
 
 $('retranslate').addEventListener('click', async () => {
