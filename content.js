@@ -521,7 +521,7 @@
     // "Chữ" = TIẾNG (tách bằng khoảng trắng): "lâm động thiên hạ" ->
     //   hoa2       : "Lâm Động thiên hạ"   (2 tiếng đầu hoa, còn lại thường)
     //   thuongCuoi : "Lâm Động Thiên hạ"   (tất cả hoa TRỪ tiếng cuối)
-    //   hoaAll     : "LÂM ĐỘNG THIÊN HẠ"   (in hoa toàn bộ)
+    //   hoaAll     : "Lâm Động Thiên Hạ"   (viết hoa chữ đầu MỖI tiếng)
     function capWord(w) { return w ? w.charAt(0).toLocaleUpperCase('vi') + w.slice(1) : w; }
     function applyCase(mode, box) {
       const words = box.value.trim().split(/\s+/).filter(Boolean);
@@ -529,7 +529,7 @@
       let out;
       if (mode === 'hoa2') out = words.map((w, i) => (i < 2 ? capWord(w) : w.toLocaleLowerCase('vi'))).join(' ');
       else if (mode === 'thuongCuoi') out = words.map((w, i) => (i < words.length - 1 ? capWord(w) : w.toLocaleLowerCase('vi'))).join(' ');
-      else out = box.value.trim().toLocaleUpperCase('vi');
+      else out = words.map(w => capWord(w.toLocaleLowerCase('vi'))).join(' ');   // hoa dau MOI tieng
       box.value = out;
       return out;
     }
@@ -584,7 +584,7 @@
     phienBtns.appendChild(phienSave);
     phienBtns.appendChild(caseBtn('Hoa 2 chữ đầu', 'hoa2', phienInput, '2 tiếng đầu viết hoa, còn lại thường — lưu âm Hán Việt vào từ điển truyện'));
     phienBtns.appendChild(caseBtn('Thường chữ cuối', 'thuongCuoi', phienInput, 'Tất cả tiếng viết hoa trừ tiếng cuối — lưu âm Hán Việt vào từ điển truyện'));
-    phienBtns.appendChild(caseBtn('Hoa toàn bộ', 'hoaAll', phienInput, 'Viết hoa toàn bộ — lưu âm Hán Việt vào từ điển truyện'));
+    phienBtns.appendChild(caseBtn('Hoa toàn bộ', 'hoaAll', phienInput, 'Viết hoa chữ đầu mỗi tiếng — lưu âm Hán Việt vào từ điển truyện'));
 
     // Bố cục: Tiếng Trung -> Hán Việt -> [nút Hán Việt] -> Vietphrase -> [nút Vietphrase]
     pop.appendChild(hanRow.wrap);
@@ -597,7 +597,7 @@
     const vpBtns = el('div', 'vp-pop-btns');
     vpBtns.appendChild(caseBtn('Hoa 2 chữ đầu', 'hoa2', vpInput, '2 tiếng đầu viết hoa, còn lại thường — áp cho nghĩa Vietphrase đang sửa'));
     vpBtns.appendChild(caseBtn('Thường chữ cuối', 'thuongCuoi', vpInput, 'Tất cả tiếng viết hoa trừ tiếng cuối — áp cho nghĩa Vietphrase đang sửa'));
-    vpBtns.appendChild(caseBtn('Hoa toàn bộ', 'hoaAll', vpInput, 'Viết hoa toàn bộ — áp cho nghĩa Vietphrase đang sửa'));
+    vpBtns.appendChild(caseBtn('Hoa toàn bộ', 'hoaAll', vpInput, 'Viết hoa chữ đầu mỗi tiếng — áp cho nghĩa Vietphrase đang sửa'));
     const vpSave = el('button', 'vp-save', 'Lưu');
     vpSave.title = 'Lưu nghĩa tiếng Việt đang sửa vào từ điển riêng của truyện này';
     vpSave.addEventListener('click', () => saveGlossary(state.han, vpInput.value.trim()));
