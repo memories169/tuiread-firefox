@@ -263,11 +263,11 @@
   }
 
   function schedule(node) {
-    queue.add(node);
+    if (node) queue.add(node);   // observer gọi schedule() KHÔNG đối số khi chỉ muốn flush
     if (timer) clearTimeout(timer);
     timer = setTimeout(async () => {
       timer = null;
-      const pending = [...queue].filter(n => n.parentNode && !done.has(n) && HAN_RE.test(n.nodeValue || ''));
+      const pending = [...queue].filter(n => n && n.parentNode && !done.has(n) && HAN_RE.test(n.nodeValue || ''));
       queue.clear();
       if (pending.length) await translatePending(pending);
     }, 350);
@@ -279,7 +279,7 @@
       if (applying) return;
       for (const mutation of mutations) {
         for (const added of mutation.addedNodes) {
-          if (added.nodeType === Node.TEXT_NODE) { queue.add(added); continue; }
+          if (added.nodeType === Node.TEXT_NODE && added.nodeValue && HAN_RE.test(added.nodeValue)) { queue.add(added); continue; }
           if (!(added instanceof Element)) continue;
           const walker = document.createTreeWalker(added, NodeFilter.SHOW_TEXT);
           for (let n = walker.nextNode(); n; n = walker.nextNode()) queue.add(n);
