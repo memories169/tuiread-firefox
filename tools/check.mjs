@@ -371,7 +371,11 @@ for (const f of Object.values(FILES)) {
 }
 // content script khong duoc la ES module (Chrome content_scripts khong ho tro import o doan nay)
 check('content.js khong dung import/export', !/^\s*(import|export)\s/m.test(fs.readFileSync(path.join(root, 'content.js'), 'utf8')));
-check('engine/ khong thuoc web_accessible_resources (chi offscreen doc duoc)', !manifest.web_accessible_resources);
+// Font (fonts/sf-pro/*.otf) PHẢI nằm trong web_accessible_resources để FontFace API của
+// content script tải được từ trang (CSS content script resolve URL tương đối theo trang —
+// bị chặn). Chỉ mở đúng thư mục font cho đúng site; engine/ và dict/ vẫn KHÔNG được lộ.
+check('engine/ khong thuoc web_accessible_resources (chi offscreen doc duoc)',
+  !(manifest.web_accessible_resources || []).some(r => (r.resources || []).some(p => p.startsWith('engine') || p.startsWith('dict'))));
 
 // Duyen het cac loai tin nhan vp:* duoc gui -> phai co noi xu ly.
 // vp:command di qua chrome.tabs.sendMessage (content script tra loi); cac loai khac qua

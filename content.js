@@ -556,6 +556,19 @@
   }
 
 
+  // caretAt(x, y): tìm text node + vị trí ký tự tại toạ độ màn hình (đường vào chính của
+  // click-to-edit). Firefox có caretRangeFromPoint; chuẩn là caretPositionFromPoint.
+  function caretAt(x, y) {
+    if (document.caretRangeFromPoint) {
+      const range = document.caretRangeFromPoint(x, y);
+      if (range) return { node: range.startContainer, offset: range.startOffset };
+    } else if (document.caretPositionFromPoint) {
+      const pos = document.caretPositionFromPoint(x, y);
+      if (pos) return { node: pos.offsetNode, offset: pos.offset };
+    }
+    return { node: null, offset: -1 };
+  }
+
   async function onDocClick(e) {
     const pop = document.getElementById('vp-pop');
     if (pop) {
@@ -677,8 +690,30 @@
     return true;
   });
 
+  // Font SF Pro Display: CSS của content script có URL tương đối bị resolve theo NGUỒN TRANG
+  // (uukanshu.cc) -> Firefox chặn tải font từ moz-extension://. Cách đúng: đăng ký bằng
+  // FontFace API với URL tuyệt đối chrome.runtime.getURL — không đụng CSP của trang.
+  const FONT_FILES = [
+    ['400', 'normal', 'fonts/sf-pro/SF-Pro-Display-Regular.otf'],
+    ['500', 'normal', 'fonts/sf-pro/SF-Pro-Display-Medium.otf'],
+    ['700', 'normal', 'fonts/sf-pro/SF-Pro-Display-Bold.otf'],
+    ['400', 'italic', 'fonts/sf-pro/SF-Pro-Display-RegularItalic.otf']
+  ];
+  let fontsRegistered = false;
+  function registerFonts() {
+    if (fontsRegistered || !(window.FontFace && chrome.runtime && chrome.runtime.getURL)) return;
+    fontsRegistered = true;
+    for (const [weight, style, path] of FONT_FILES) {
+      try {
+        const face = new FontFace('SF Pro Display', 'url(' + chrome.runtime.getURL(path) + ')', { weight, style });
+        face.load().then(f => document.fonts.add(f)).catch(() => { /* font lỗi thì rơi về system-ui */ });
+      } catch { /* trình duyệt cũ */ }
+    }
+  }
+
   async function init() {
     keepAliveStart();
+    registerFonts();
     await loadConfig();
     if (!hostEnabled) return;
     await runOnce();

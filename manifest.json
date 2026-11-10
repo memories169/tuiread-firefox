@@ -70,5 +70,18 @@
     "gecko_android": {
       "strict_min_version": "142.0"
     }
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "fonts/sf-pro/*.otf"
+      ],
+      "matches": [
+        "*://uukanshu.cc/*",
+        "*://*.uukanshu.cc/*",
+        "*://www.piaotia.com/*",
+        "*://piaotia.com/*"
+      ]
+    }
+  ]
 }
