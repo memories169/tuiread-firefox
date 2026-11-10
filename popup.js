@@ -73,6 +73,7 @@ async function refresh() {
 
   const got = await storeGet(['settings', 'hostState']);
   $('mode').value = (got.settings && got.settings.mode) || 'vi';
+  document.documentElement.dataset.theme = (got.settings && got.settings.uiTheme) || '';   // cappuccino...
   const state = got.hostState || {};
   enabled = hostName ? state[hostName] !== false : false;
   renderToggle();
@@ -92,7 +93,7 @@ async function refresh() {
   }
   const page = await toPage({ type: 'vp:command', action: 'status' });
   renderStatus(
-    `Engine: sẵn sàng sau ${Math.round((status.loadMs || 0) / 100) / 10}s (build 0.5.1)\n` +
+    `Engine: sẵn sàng sau ${Math.round((status.loadMs || 0) / 100) / 10}s (build 0.6.0)\n` +
     `VP ${status.info.vp} · Names ${status.info.names} · PA ${status.info.pa}\n` +
     `Rules ${status.rules.active} hoạt động (${status.rules.unsupported} bỏ qua vì cần <ne|pn|w>)\n` +
     `繁→簡: ${status.t2s} ký tự\n` +

@@ -157,7 +157,7 @@
   // iframe/HTML moi tao) truoc khi dich lai. Lan thu 2/3 de phong truong hop load cham.
   // build của offscreen gửi kèm response; lệch → engine trả lời là VIEW CŨ sống
   // sót qua Reload (zombie) — kết quả không tin được, cảnh báo bằng chip.
-  const CONTENT_BUILD = '0.5.1';
+  const CONTENT_BUILD = '0.6.0';
   function warnBuildMismatch(resp) {
     if (resp && resp.build && resp.build !== CONTENT_BUILD) {
       console.warn('[TuiRead] engine view cũ (build ' + resp.build + ') đang trả lời — khởi động lại Firefox để sạch.');
@@ -871,8 +871,8 @@
     if (!hostEnabled) return;
     // MARKER BẢN: chip biến mất sau 4s; nhìn chip biết chính xác content script
     // đang chạy là bản nào (khi nghi vấn nạp nhầm .xpi / tab chưa F5).
-    setStatusChip('TuiRead content 0.5.1');
-    setTimeout(() => { const c = document.getElementById('vp-status-chip'); if (c && c.textContent === 'TuiRead content 0.5.1') c.remove(); }, 4000);
+    setStatusChip('TuiRead content 0.6.0');
+    setTimeout(() => { const c = document.getElementById('vp-status-chip'); if (c && c.textContent === 'TuiRead content 0.6.0') c.remove(); }, 4000);
     await runOnce();
     startObserver();
   }

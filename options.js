@@ -1,6 +1,8 @@
 const $ = id => document.getElementById(id);
 
 const KEYS = ['mode', 'firstMeaning', 'skipParticles', 'useRules', 'useNames', 'translateChrome', 'allowClickEdit'];
+// theme KHÔNG vào KEYS (engine không cần) — chỉ dùng ngay trong trang options/popup.
+let theme = '';
 
 function ask(message) {
   return new Promise(resolve => {
@@ -34,6 +36,7 @@ function current() {
     const el = $(key);
     out[key] = el.type === 'checkbox' ? el.checked : el.value;
   }
+  out.uiTheme = $('theme').value;   // lưu kèm settings — popup đọc cùng trường
   return out;
 }
 
@@ -58,7 +61,19 @@ async function load() {
     if (el.type === 'checkbox') el.checked = s[key] !== false;
     else el.value = s[key] || 'vi';
   }
+  theme = s.uiTheme || '';
+  applyTheme(theme);
+  $('theme').value = theme;
 }
+
+function applyTheme(value) {
+  document.documentElement.dataset.theme = value || '';
+}
+
+$('theme').addEventListener('change', () => {
+  theme = $('theme').value;
+  applyTheme(theme);   // xem thử ngay trước khi bấm Lưu
+});
 
 $('save').addEventListener('click', async () => {
   const saved = await storeSet({ settings: current() });
