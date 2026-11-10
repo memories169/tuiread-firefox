@@ -533,6 +533,43 @@
     });
     btns.appendChild(right);
 
+    // Ba nút kiểu chữ: biến đổi nội dung ô nhập theo vùng đang chọn rồi lưu NGAY vào
+    // từ điển riêng của truyện (glossary per-book). "Chữ" ở đây là TIẾNG (tách bằng
+    // khoảng trắng): "lâm động thiên hạ" →
+    //   Hoa 2 chữ đầu  : "Lâm Động thiên hạ"  (2 tiếng đầu viết hoa, còn lại thường)
+    //   Thường chữ cuối: "Lâm Động Thiên hạ"  (tất cả viết hoa TRỪ tiếng cuối)
+    //   Hoa toàn bộ    : "LÂM ĐỘNG THIÊN HẠ"  (in hoa toàn bộ)
+    function capWord(w) { return w ? w.charAt(0).toLocaleUpperCase('vi') + w.slice(1) : w; }
+    function applyCase(mode) {
+      const trimmed = input.value.trim();
+      const words = trimmed.split(/\s+/).filter(Boolean);
+      if (!words.length) return;
+      let out;
+      if (mode === 'hoa2') {
+        out = words.map((w, i) => (i < 2 ? capWord(w) : w.toLocaleLowerCase('vi'))).join(' ');
+      } else if (mode === 'thuongCuoi') {
+        out = words.map((w, i) => (i < words.length - 1 ? capWord(w) : w.toLocaleLowerCase('vi'))).join(' ');
+      } else {
+        out = trimmed.toLocaleUpperCase('vi');
+      }
+      input.value = out;
+      input.dataset.auto = '0';   // coi như user đã sửa: render() không ghi đè lại
+      saveGlossary(state.han, out);
+    }
+    const caseRow = el('div', 'vp-pop-btns');
+    const bHoa2 = el('button', undefined, 'Hoa 2 chữ đầu');
+    bHoa2.title = '2 tiếng đầu viết hoa, phần còn lại viết thường — lưu vào từ điển truyện này';
+    bHoa2.addEventListener('click', () => applyCase('hoa2'));
+    caseRow.appendChild(bHoa2);
+    const bThuong = el('button', undefined, 'Thường chữ cuối');
+    bThuong.title = 'Tất cả tiếng viết hoa trừ tiếng cuối — lưu vào từ điển truyện này';
+    bThuong.addEventListener('click', () => applyCase('thuongCuoi'));
+    caseRow.appendChild(bThuong);
+    const bHoaAll = el('button', undefined, 'Hoa toàn bộ');
+    bHoaAll.title = 'Viết hoa toàn bộ — lưu vào từ điển truyện này';
+    bHoaAll.addEventListener('click', () => applyCase('hoaAll'));
+    caseRow.appendChild(bHoaAll);
+
     const save = el('button', 'vp-save', 'Lưu');
     save.title = 'Lưu vào bộ từ điển riêng của truyện này';
     save.addEventListener('click', () => { input.dataset.auto = '0'; saveGlossary(state.han, input.value.trim()); });
@@ -550,6 +587,7 @@
     close.addEventListener('click', closePop);
     btns.appendChild(close);
     pop.appendChild(btns);
+    pop.appendChild(caseRow);   // 3 nút kiểu chữ (lưu glossary truyện) — hàng riêng cho gọn
 
     pop.appendChild(el('div', 'vp-pop-hint', '◀ ▶ gộp token kề; bấm chip chữ Hán để thu vùng. ' + String.fromCharCode(34) + 'Lưu' + String.fromCharCode(34) + ' = từ điển riêng của truyện này; ' + String.fromCharCode(34) + 'Lưu vào từ điển VP' + String.fromCharCode(34) + ' = mọi truyện. Esc đóng.'));
     (document.body || document.documentElement).appendChild(pop);
