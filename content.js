@@ -389,7 +389,10 @@
   }
 
   function showEditor(x, y, token, ctx) {
-    closePop();
+    // Gỡ card cũ (nếu có) nhưng GIỮ highlight: onDocClick vừa vẽ vùng chọn trước khi
+    // gọi hàm này; closePop() ở đây từng xoá highlight ngay sau khi vẽ -> không thấy màu.
+    const oldPop = document.getElementById('vp-pop');
+    if (oldPop) oldPop.remove();
     const pop = el('div', 'vp-pop');
     pop.id = 'vp-pop';
     const state = {
