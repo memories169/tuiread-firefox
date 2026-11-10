@@ -514,7 +514,7 @@
       if (OPEN_SET.has(a)) return '';
       if (CLOSE_NO_SPACE.has(b)) return '';
       if ('.!?,;:'.includes(a)) return ' ';
-      if (/[\\p{L}0-9]/u.test(a) && /[\\p{L}0-9]/u.test(b)) return ' ';
+      if (/[\p{L}0-9]/u.test(a) && /[\p{L}0-9]/u.test(b)) return ' ';
       return '';
     }
     const OPEN_SET = new Set('([「《〈"\'');
