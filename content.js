@@ -316,6 +316,15 @@
     pa: 'âm Hán Việt — chưa có trong từ điển'
   };
 
+  // el(tag, class, text): helper tạo element — bị mất trong lần cắt khối highlight,
+  // mọi chỗ dựng card/chip/layer đều gọi nó.
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
   function closePop() {
     const pop = document.getElementById('vp-pop');
     if (pop) pop.remove();
