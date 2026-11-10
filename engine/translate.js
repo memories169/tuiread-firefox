@@ -276,20 +276,31 @@ export function createEngine(dicts, settings = {}) {
     }
 
     // Quy tắc ngữ cảnh cho PARTICLE 的 (bản đơn — cụm dài như 高高的/美丽的大 đã khớp
-    // trước đó): nghĩa thật phụ thuộc từ đứng trước/sau.
-    //   • 的 GIỮA 2 token có chữ Hán (A的B, A/B đều từ Hán)  -> 'của'  (雷火的淬炼
-    //     -> 'Lôi hỏa của rèn luyện'). VP gốc cho '/như thế/đích' — chọn 'như thế'
-    //     thì câu vỡ ('Kiếm khách như thế tôn nghiêm'); 'của' đúng loại từ trong đại
-    //     đa số trường hợp danh từ(danh từ) của văn tuổi trẻ.
-    //   • 的 ĐỨNG CUỐI (trước dấu/nội dung rỗng) hoặc SAU dấu -> giữ 'như thế' (dạng
-    //     '...的' kết cụm tính từ: 高高的山 thường đã khớp cụm; trường hợp sót hiếm).
+    // trước đó): nghĩa thật phụ thuộc từ đứng trước/sau. VP gốc cho '/như thế/đích'.
+    //   • 的 GIỮA 2 token Hán ĐỘC LẬP (A的B) -> SỞ HỮU CÁCH tiếng Việt: 'B của A'.
+    //     ĐẢO TRẬT TỰ 2 token quanh 的: [A][的][B] -> [B][của][A]. Tiếng Trung đặt sở
+    //     hữu TRƯỚC danh từ (陆鸣的爷爷 = 'grandpa of Lục Minh') còn tiếng Việt đặt
+    //     SAU ('gia gia của Lục Minh') — không đảo thì câu sai ngữ pháp VN.
+    //     Điều kiện an toàn: A, B là token có NGHĨA VP (kind vp/vp1/name/gl/sup) và
+    //     chữ Hán ĐUÔI của A / ĐẦU của B (không phải dấu, không phải số-thuần).
+    //     Sau đảo vẫn giữ đúng spans vì spans sinh LẠI trong vòng ghép out dưới.
+    //   • 的 ĐỨNG CUỐI (trước dấu/kết chuỗi) hoặc SAU dấu -> giữ 'như thế'.
+    const flipable = k => k === 'vp' || k === 'vp1' || k === 'name' || k === 'gl' || k === 'sup';
     for (let i = 0; i < tokens.length; i++) {
       const t = tokens[i];
       if (t.han !== '的' || (t.kind !== 'vp1' && t.kind !== 'pa')) continue;
       const prev = tokens[i - 1], next = tokens[i + 1];
       const hanEnd = prev && prev.han && HAN_RE.test(prev.han[prev.han.length - 1]);
       const hanStart = next && next.han && HAN_RE.test(next.han[0]);
-      if (hanEnd && hanStart) t.vi = 'của';
+      if (hanEnd && hanStart && flipable(prev.kind) && flipable(next.kind)) {
+        // Đảo A <-> B quanh 的; nghĩa của 的 luôn 'của'.
+        tokens[i - 1] = next;
+        tokens[i + 1] = prev;
+        t.vi = 'của';
+        i++;   // bỏ qua token B vừa đảo về trước — đã xử lý, tránh đảo ngược lại
+      } else if (hanEnd && hanStart) {
+        t.vi = 'của';   // 1 trong 2 bên không flipable (rule/raw/pa...) — chỉ đổi nghĩa
+      }
     }
 
     // spans[i] = [vi tri trong chuoi vi, chi so token]: dung de map vi tri bam chuot ve token
