@@ -155,8 +155,21 @@
   // vp:ensure -> background tao engine page (Firefox: iframe an trong background; Chrome:
   // offscreen document) roi CHO engine page nhan onMessage (module script chua kip chay tu
   // iframe/HTML moi tao) truoc khi dich lai. Lan thu 2/3 de phong truong hop load cham.
+  // build của offscreen gửi kèm response; lệch → engine trả lời là VIEW CŨ sống
+  // sót qua Reload (zombie) — kết quả không tin được, cảnh báo bằng chip.
+  const CONTENT_BUILD = '0.5.1';
+  function warnBuildMismatch(resp) {
+    if (resp && resp.build && resp.build !== CONTENT_BUILD) {
+      console.warn('[TuiRead] engine view cũ (build ' + resp.build + ') đang trả lời — khởi động lại Firefox để sạch.');
+      setStatusChip('⚠ Engine cũ (build ' + resp.build + ') trả lời — KHỞI ĐỘNG LẠI FIREFOX');
+      return true;
+    }
+    return false;
+  }
+
   async function askTranslate(texts) {
     let resp = await send({ type: 'vp:translate', texts, bookKey: bookKey() });
+    warnBuildMismatch(resp);
     if (resp && resp.ok) return resp.results;
     await send({ type: 'vp:ensure' });
     for (const wait of [300, 900]) {

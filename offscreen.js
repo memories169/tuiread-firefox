@@ -13,8 +13,10 @@ import { maxKeyLength } from './engine/dict.js';
 import { DICT_VERSION, setKeyContext, makeKey, cacheGet, cachePut, cachePrune, cacheStats, cacheClear } from './db.js';
 
 // MARKER PHIÊN BẢN ENGINE: in ra console của background/offscreen để xác minh bản
-// đang chạy (v0.5.0 = có quy tắc 的: gộp token đơn chữ trước 的 + guard flip).
-console.log('[TuiRead] engine build 0.5.1 (DICT_VERSION ' + DICT_VERSION + ', có quy tắc 的)');
+// đang chạy; 'build' kèm trong MỌI response — content/popup cảnh báo khi lệch bản
+// (chống 'zombie engine view' sống sót qua Reload add-on trả kết quả cũ).
+const ENGINE_BUILD = '0.5.1';
+console.log('[TuiRead] engine build ' + ENGINE_BUILD + ' (DICT_VERSION ' + DICT_VERSION + ', có quy tắc 的)');
 
 const DATA = { vp: null, names: null, pa: null, pronouns: null, t2s: null, rules: null, supplement: null };
 // MaxKeyLength tính MỘT LẦN lúc parse, rebuild sau đó chỉ dùng lại (mỗi lần Lưu tiết kiệm ~200ms quét 1M key).
@@ -317,7 +319,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'vp:cache-clear') {
     (async () => {
       await cacheClear();
-      sendResponse({ ok: true });
+      sendResponse({ ok: true, build: ENGINE_BUILD });
     })().catch(err => sendResponse({ ok: false, error: String(err && err.message || err) }));
     return true;
   }
@@ -348,7 +350,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
         if (putEntries.length) cachePut(putEntries);   // nen: khong cho ghi xong moi tra loi
         if (misses) noteEvent('dịch batch ' + texts.length + ' node (miss ' + misses + ')');
-        sendResponse({ ok: true, results, stats: { hits: texts.length - misses, misses } });
+        sendResponse({ ok: true, build: ENGINE_BUILD, results, stats: { hits: texts.length - misses, misses } });
       } catch (err) {
         sendResponse({ ok: false, error: String(err && err.message || err) });
       }
@@ -394,7 +396,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             }
           }
         }
-        sendResponse({ ok: true, tokens, spans, phienOf: (engine || eng).phienOf });
+        sendResponse({ ok: true, build: ENGINE_BUILD, tokens, spans, phienOf: (engine || eng).phienOf });
       } catch (err) {
         sendResponse({ ok: false, error: String(err && err.message || err) });
       }
