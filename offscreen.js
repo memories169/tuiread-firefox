@@ -12,6 +12,10 @@ import { decode, FILES, parseDict, parseDictBuffer, parseT2S, createRuleEngine, 
 import { maxKeyLength } from './engine/dict.js';
 import { DICT_VERSION, setKeyContext, makeKey, cacheGet, cachePut, cachePrune, cacheStats } from './db.js';
 
+// MARKER PHIÊN BẢN ENGINE: in ra console của background/offscreen để xác minh bản
+// đang chạy (v0.5.0 = có quy tắc 的: gộp token đơn chữ trước 的 + guard flip).
+console.log('[TuiRead] engine build 0.5.0 (DICT_VERSION ' + DICT_VERSION + ', có quy tắc 的)');
+
 const DATA = { vp: null, names: null, pa: null, pronouns: null, t2s: null, rules: null, supplement: null };
 // MaxKeyLength tính MỘT LẦN lúc parse, rebuild sau đó chỉ dùng lại (mỗi lần Lưu tiết kiệm ~200ms quét 1M key).
 const DATA_MAX = {};
