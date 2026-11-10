@@ -1,3 +1,36 @@
+/* SF Pro Display dong goi kem add-on (OTF; extension chrome-extension:// doc duoc file font) */
+@font-face {
+  font-family: 'SF Pro Display';
+  src: url('../fonts/sf-pro/SF-Pro-Display-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'SF Pro Display';
+  src: url('../fonts/sf-pro/SF-Pro-Display-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'SF Pro Display';
+  src: url('../fonts/sf-pro/SF-Pro-Display-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'SF Pro Display';
+  src: url('../fonts/sf-pro/SF-Pro-Display-RegularItalic.otf') format('opentype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
 .vp-orig {
   display: none;
 }
@@ -63,6 +96,14 @@ body.vp-mode-han .vp-orig {
   font-size: 11px;
 }
 
+/* Âm Hán Việt của vùng chọn — hàng nhỏ xám ngay dưới tiêu đề */
+.vp-pop-phien {
+  font-size: 12.5px;
+  color: #6d7a78;
+  font-style: italic;
+  margin: 2px 0 4px;
+}
+
 .vp-pop-cur {
   color: #8a6d1a;
   font-size: 12px;
@@ -113,7 +154,15 @@ body.vp-mode-han .vp-orig {
 }
 
 /* F1: highlight từ đang chọn để sửa — xanh thẫm (teal đậm của brand), KHÔNG sáng chói.
-   Layer fixed phủ lên đoạn text, pointer-events:none để không chắn click. */
+   Ưu tiên CSS Custom Highlight API (::highlight) bám theo Range thật nên không bao giờ
+   trôi khi scroll/zoom; fallback là overlay .vp-highlight cho trình duyệt cũ. */
+::highlight(vp-sel) {
+  background-color: rgba(18, 71, 75, 0.30);     /* #12474b ở 30% — nền xanh thẫm dịu */
+  text-decoration: underline;
+  text-decoration-color: rgba(18, 71, 75, 0.55);
+  text-underline-offset: 3px;
+}
+
 .vp-highlight-layer {
   position: fixed;
   inset: 0;
@@ -126,6 +175,12 @@ body.vp-mode-han .vp-orig {
   background: rgba(18, 71, 75, 0.28);          /* #12474b ở 28% — nền xanh thẫm dịu */
   border-radius: 3px;
   box-shadow: 0 0 0 1px rgba(18, 71, 75, 0.45); /* viền cùng tông để nổi trên nền sáng */
+}
+
+/* Font SF Pro Display cho toàn bộ bản dịch (span .vp-vi bọc quanh text node đã dịch)
+   và mọi UI của TuiRead trên trang. Chữ Hán gốc (.vp-orig) giữ font của trang. */
+.vp-vi, .vp-pop, .vp-status-chip {
+  font-family: 'SF Pro Display', system-ui, sans-serif;
 }
 
 

@@ -212,7 +212,13 @@ async function writeGlossaries(map) {
   const got = await callP(chrome.storage.local, 'get', 'glossariesVersion');
   const version = (got.glossariesVersion || 0) + 1;
   await callP(chrome.storage.local, 'set', { glossaries: map, glossariesVersion: version });
-  try { await callP(chrome.runtime, 'sendMessage', { type: 'vp:settings', settings: {} }); } catch { /* engine chưa sống */ }
+  // Báo engine page và CHỜ nó rebuild XONG (offscreen chỉ sendResponse sau khi dựng lại
+  // engine với bộ glossary mới). Không chờ ở đây thì content dịch lại ngay và đón engine cũ
+  // -> phải bấm "Nạp lại từ điển" mới thấy nghĩa mới. Engine chưa sống thì bỏ qua: lần boot
+  // sau luôn đọc store mới nhất.
+  try {
+    await callP(chrome.runtime, 'sendMessage', { type: 'vp:glossaries', version });
+  } catch { /* offscreen chưa sống */ }
   return { version };
 }
 

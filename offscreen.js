@@ -294,6 +294,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Glossary per-book đổi (lưu từ card/options): đọc lại từ chrome.storage QUA background
+  // (invariant một-chỗ-đọc-lưu-trữ) rồi rebuild XONG mới trả lời -> lần dịch lại của trang
+  // ngay sau đó chắc chắn dùng bộ mới. Version cũ hơn đang chạy thì bỏ qua (tin cũ đến sau).
+  if (msg.type === 'vp:glossaries') {
+    (async () => {
+      noteEvent('nhận glossary version ' + (msg.version || 0));
+      if (msg.version && glossariesVersion && msg.version < glossariesVersion) return sendResponse({ ok: true, stale: true });
+      appliedBookKey = '';     // engine-per-book phải dựng lại để nạp glossary mới của sách
+      await rebuildSerialized('glossaries');
+      sendResponse({ ok: true });
+    })().catch(err => { fail(err); sendResponse({ ok: false, error: String(err && err.message || err) }); });
+    return true;
+  }
+
   if (msg.type === 'vp:translate') {
     (async () => {
       try {
@@ -352,13 +366,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           const putEntries = [];
           for (const i of missIdx) {
             const out = eng.translate(texts[i]);
-            tokens[i] = out.tokens.map(t => [t.han, t.vi, t.kind]);
+            tokens[i] = out.tokens.map(t => [t.han, t.vi, t.kind, eng.phienOf(t.han)]);
             spans[i] = out.spans;
             putEntries.push([keys[i], { vi: out.stats ? out.vi : texts[i], tokens: tokens[i], spans: out.spans, ts: Date.now() }]);
           }
           cachePut(putEntries);
+        } else if (engine) {
+          // hit cache: token cũ 3 phần tử - bơm âm Hán Việt ngay trước khi trả về.
+          for (let i = 0; i < tokens.length; i++) {
+            if (tokens[i] && tokens[i].length && tokens[i][0].length < 4) {
+              tokens[i] = tokens[i].map(t => t.length >= 4 ? t : [...t, engine.phienOf(t[0])]);
+            }
+          }
         }
-        sendResponse({ ok: true, tokens, spans });
+        sendResponse({ ok: true, tokens, spans, phienOf: (engine || eng).phienOf });
       } catch (err) {
         sendResponse({ ok: false, error: String(err && err.message || err) });
       }

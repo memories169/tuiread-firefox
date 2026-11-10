@@ -187,6 +187,13 @@
       node.parentNode.insertBefore(span, node.nextSibling);
       inserted.add(span);
     }
+    // Font SF Pro Display cho bản dịch: text node trần không nhận được font từ CSS,
+    // phải bọc span .vp-vi quanh node (span nằm trong `inserted` để restore() dọn sạch).
+    const vi = document.createElement('span');
+    vi.className = 'vp-vi';
+    node.parentNode.insertBefore(vi, node);
+    vi.appendChild(node);
+    inserted.add(vi);
     node.nodeValue = translated;
     done.add(node);
   }
@@ -231,7 +238,18 @@
       done.delete(node);
     }
     originals.clear();
-    for (const span of inserted) span.remove();
+    for (const span of inserted) {
+      const parent = span.parentNode;
+      if (!parent) continue;
+      if (span.classList && span.classList.contains('vp-vi')) {
+        // Bọc .vp-vi đang CHỨA text node gốc — unwrap (đẩy node ra chỗ cũ) trước khi
+        // remove, nếu không xoá mất luôn bản gốc Hán.
+        while (span.firstChild) parent.insertBefore(span.firstChild, span);
+        span.remove();
+      } else {
+        span.remove();   // .vp-orig: chữ Hán chèn thêm, xoá thẳng là đúng
+      }
+    }
     inserted.clear();
   }
 
@@ -300,10 +318,16 @@
   // Range.getClientRects() lên một layer pointer-events:none -> KHÔNG đụng vào DOM text,
   // nên không phá originals/observer và không kích hoạt dịch lại. Layer fixed + vẽ lại khi
   // scroll/resize vì rect là toạ độ khung nhìn.
+  // Tô nền xanh thẫm bằng CSS Custom Highlight API (Firefox 140+): đăng ký Range THẬT,
+  // trình duyệt tự vẽ + bám theo text khi scroll/zoom/reflow - không còn lớp overlay trôi.
+  // Fallback: overlay rect thủ công như cũ cho trình duyệt không hỗ trợ.
+  let hlRange = null;      // Range đang đăng ký Highlight
   let highlightLayer = null;
   let highlightSource = null;
 
   function clearHighlight() {
+    try { if (window.CSS && CSS.highlights) CSS.highlights.delete('vp-sel'); } catch { /* cũ */ }
+    hlRange = null;
     if (highlightLayer) { highlightLayer.remove(); highlightLayer = null; }
     highlightSource = null;
   }
@@ -314,6 +338,11 @@
       const range = document.createRange();
       range.setStart(node, Math.max(0, Math.min(start, node.nodeValue.length)));
       range.setEnd(node, Math.max(0, Math.min(end, node.nodeValue.length)));
+      if (window.CSS && CSS.highlights) {
+        hlRange = range;   // Range sống: scroll/zoom không trôi, không cần vẽ lại
+        CSS.highlights.set('vp-sel', new Highlight(range));
+        return;
+      }
       const rects = [...range.getClientRects()];
       if (!rects.length) return;
       highlightLayer = el('div', 'vp-highlight-layer');
@@ -329,13 +358,6 @@
       highlightSource = { node, start, end };
     } catch { /* node đã đổi giữa chừng — bỏ qua, card vẫn mở bình thường */ }
   }
-
-  window.addEventListener('scroll', () => {
-    if (highlightSource) showHighlightFor(highlightSource.node, highlightSource.start, highlightSource.end);
-  }, { passive: true, capture: true });
-  window.addEventListener('resize', () => {
-    if (highlightSource) showHighlightFor(highlightSource.node, highlightSource.start, highlightSource.end);
-  });
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -407,6 +429,11 @@
     head.appendChild(el('span', 'vp-pop-kind', KIND_LABELS[token.kind] || token.kind));
     pop.appendChild(head);
 
+    // Am Han Viet cua vung chon (F-am): doc tu token[3] (offscreen tra phienOf); token cu
+    // chi 3 phan tu thi tinh tam bang phienOf tu token.han.
+    const phien = el('div', 'vp-pop-phien');
+    pop.appendChild(phien);
+
     const cur = el('div', 'vp-pop-cur');
     pop.appendChild(cur);
 
@@ -453,6 +480,13 @@
         if (ti < state.to) hanBox.appendChild(el('span', 'vp-chip-sep', '·'));
       }
       state.han = han;
+      let ph = '';
+      for (let i = state.from; i <= state.to; i++) {
+        const t = ctx.tokens[i];
+        ph += (t.length >= 4 ? t[3] : (ctx.phienOf ? ctx.phienOf(t[0]) : '')) + ' ';
+      }
+      phien.textContent = ph.trim();
+      phien.style.display = ph.trim() ? '' : 'none';
       const hasOv = overridesMap[state.han] !== undefined;
       cur.textContent = hasOv && overridesMap[state.han] !== selDefaultVi()
         ? 'Mặc định từ điển: ' + selDefaultVi()
@@ -526,7 +560,16 @@
     if (!(target instanceof Element)) return;
     if (target.closest('a, button, input, select, textarea, label, #vp-status-chip')) return;
 
-    const { node, offset } = caretAt(e.clientX, e.clientY);
+    let { node, offset } = caretAt(e.clientX, e.clientY);
+    // Bấm vào CHỮ HÁN GỐC (span.vp-orig, mode vi+Hán): ánh xạ về node Việt tương ứng
+    // (span.vp-orig được chèn NGAY SAU node Việt trong applyResult) — offset giữ nguyên vì
+    // vị trí bấm trong chuỗi Hán không map được sang chuỗi Việt, dùng giữa chuỗi cho chắc.
+    if (node && node.parentElement && node.parentElement.classList &&
+        node.parentElement.classList.contains('vp-orig')) {
+      const viNode = node.parentElement.previousSibling;
+      if (viNode && originals.has(viNode)) { node = viNode; offset = Math.floor((viNode.nodeValue || '').length / 2); }
+      else return;
+    }
     if (!node || node.nodeType !== Node.TEXT_NODE || !originals.has(node)) return;
 
     const original = originals.get(node);
@@ -552,6 +595,7 @@
 
     showEditor(e.clientX, e.clientY, { han: token[0], vi: token[1], kind: token[2] }, {
       tokens, spans, tokenIdx, node,
+      phienOf: resp.phienOf,
       // mở vùng chọn khi user bấm ◀ ▶ (đồng bộ highlight theo vùng mới)
       setRange(from, to) {
         const s = spans.find(([start, idx]) => idx === from)?.[0] ?? -1;

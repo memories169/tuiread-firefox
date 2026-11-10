@@ -309,5 +309,16 @@ export function createEngine(dicts, settings = {}) {
     return { vi: out, tokens, spans, stats };
   }
 
-  return { translate, vpMax, namesMax, info: { vp: vp.size, names: names ? names.size : 0, pa: pa.size, rules: ruleEngine ? ruleEngine.count : 0, ov: overrides ? overrides.size : 0, gl: glossary ? glossary.size : 0, sup: supplement ? supplement.size : 0 } };
+  // Âm Hán Việt TỪNG CHỮ cho card sửa (F-âm): đọc từ lớp pa (ChinesePhienAmWords.txt).
+  // '一' -> 'nhất'; chữ không có trong pa thì trả về chính nó (card tự ẩn dòng này).
+  function phienOf(han) {
+    let out = '';
+    for (const ch of String(han || '')) {
+      if (!HAN_RE.test(ch)) { out += ch; continue; }
+      out += (pa.get(ch) || ch) + ' ';
+    }
+    return out.trim();
+  }
+
+  return { translate, phienOf, vpMax, namesMax, info: { vp: vp.size, names: names ? names.size : 0, pa: pa.size, rules: ruleEngine ? ruleEngine.count : 0, ov: overrides ? overrides.size : 0, gl: glossary ? glossary.size : 0, sup: supplement ? supplement.size : 0 } };
 }

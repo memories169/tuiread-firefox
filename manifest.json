@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TuiRead",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "description": "Đọc raw truyện tiếng Trung",
   "icons": {
     "16": "icons/icon16.png",
@@ -59,7 +59,7 @@
   "options_page": "options.html",
   "browser_specific_settings": {
     "gecko": {
-      "id": "tuiread@memories169",
+      "id": "tuiread-firefox@memories169",
       "strict_min_version": "140.0",
       "data_collection_permissions": {
         "required": [
