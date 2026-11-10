@@ -569,15 +569,29 @@
 
     let { node, offset } = caretAt(e.clientX, e.clientY);
     // Bấm vào CHỮ HÁN GỐC (span.vp-orig, mode vi+Hán): ánh xạ về node Việt tương ứng
-    // (span.vp-orig được chèn NGAY SAU node Việt trong applyResult) — offset giữ nguyên vì
-    // vị trí bấm trong chuỗi Hán không map được sang chuỗi Việt, dùng giữa chuỗi cho chắc.
+    // (span.vp-orig được chèn NGAY SAU node Việt trong applyResult).
     if (node && node.parentElement && node.parentElement.classList &&
         node.parentElement.classList.contains('vp-orig')) {
       const viNode = node.parentElement.previousSibling;
       if (viNode && originals.has(viNode)) { node = viNode; offset = Math.floor((viNode.nodeValue || '').length / 2); }
       else return;
     }
-    if (!node || node.nodeType !== Node.TEXT_NODE || !originals.has(node)) return;
+    // caretAt có thể trả node của TRANG (site can thiệp caret) hoặc element trực tiếp;
+    // nếu node không phải text đã dịch, DÙNG TỌA ĐỘ để tìm text node đã dịch gần nhất
+    // (elementFromPoint → vị trí đầu của node con .vp-vi/.vp-vi con trực tiếp).
+    if (!node || node.nodeType !== Node.TEXT_NODE || !originals.has(node)) {
+      const hit = document.elementFromPoint(e.clientX, e.clientY);
+      const viSpan = hit && (hit.classList && hit.classList.contains('vp-vi') ? hit : (hit && hit.querySelector ? hit.querySelector('.vp-vi') : null));
+      const viNode = viSpan && viSpan.firstChild;
+      if (viNode && viNode.nodeType === Node.TEXT_NODE && originals.has(viNode)) {
+        node = viNode;
+        // offset ước lượng theo tỉ lệ dọc của click trong span (đủ dùng vì mỗi token
+        // sẽ được suy lại từ spans ngay sau đây)
+        offset = Math.min(viNode.nodeValue.length - 1, Math.max(0, Math.round((e.clientX - (viSpan.getBoundingClientRect().left || 0)) / Math.max(1, parseFloat(getComputedStyle(viSpan).fontSize) * 0.55))));
+      } else {
+        return;
+      }
+    }
 
     const original = originals.get(node);
     const resp = await send({ type: 'vp:tokens', texts: [original], bookKey: bookKey() });
