@@ -73,7 +73,14 @@ async function refresh() {
 
   const got = await storeGet(['settings', 'hostState']);
   $('mode').value = (got.settings && got.settings.mode) || 'vi';
-  document.documentElement.dataset.theme = (got.settings && got.settings.uiTheme) || '';   // cappuccino...
+  // Theme đọc TRỰC TIẾP từ chrome.storage.local (popup có quyền) — đường vp:get-settings
+  // qua background có thể bị view cũ/cũ chặn; theme không cần qua engine.
+  try {
+    const direct = await callP(chrome.storage.local, 'get', ['settings']);
+    const uiTheme = (direct && direct.settings && direct.settings.uiTheme) || '';
+    if (uiTheme) document.documentElement.dataset.theme = uiTheme;
+    else document.documentElement.removeAttribute('data-theme');
+  } catch { /* giữ mặc định sáng nếu đọc lỗi */ }
   const state = got.hostState || {};
   enabled = hostName ? state[hostName] !== false : false;
   renderToggle();
@@ -93,7 +100,7 @@ async function refresh() {
   }
   const page = await toPage({ type: 'vp:command', action: 'status' });
   renderStatus(
-    `Engine: sẵn sàng sau ${Math.round((status.loadMs || 0) / 100) / 10}s (build 0.6.0)\n` +
+    `Engine: sẵn sàng sau ${Math.round((status.loadMs || 0) / 100) / 10}s (build 0.6.1)\n` +
     `VP ${status.info.vp} · Names ${status.info.names} · PA ${status.info.pa}\n` +
     `Rules ${status.rules.active} hoạt động (${status.rules.unsupported} bỏ qua vì cần <ne|pn|w>)\n` +
     `繁→簡: ${status.t2s} ký tự\n` +
