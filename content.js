@@ -191,6 +191,15 @@
     // phải bọc span .vp-vi quanh node (span nằm trong `inserted` để restore() dọn sạch).
     const vi = document.createElement('span');
     vi.className = 'vp-vi';
+    // Kế thừa kiểu chữ từ nơi text node đang sống: span mới mặc định nhận font của trang
+    // chứ KHÔNG kế thừa đúng weight/style từ cha (span là phần tử mới, tính toán lại).
+    const cs = getComputedStyle(node.parentElement || document.body);
+    vi.style.fontSize = cs.fontSize;
+    vi.style.lineHeight = cs.lineHeight;
+    vi.style.fontWeight = cs.fontWeight === '400' ? '400' : cs.fontWeight;
+    if (cs.fontStyle === 'italic') vi.style.fontStyle = 'italic';
+    vi.style.textTransform = cs.textTransform;
+    vi.style.letterSpacing = cs.letterSpacing;
     node.parentNode.insertBefore(vi, node);
     vi.appendChild(node);
     inserted.add(vi);
@@ -318,31 +327,25 @@
   // Range.getClientRects() lên một layer pointer-events:none -> KHÔNG đụng vào DOM text,
   // nên không phá originals/observer và không kích hoạt dịch lại. Layer fixed + vẽ lại khi
   // scroll/resize vì rect là toạ độ khung nhìn.
-  // Tô nền xanh thẫm bằng CSS Custom Highlight API (Firefox 140+): đăng ký Range THẬT,
-  // trình duyệt tự vẽ + bám theo text khi scroll/zoom/reflow - không còn lớp overlay trôi.
-  // Fallback: overlay rect thủ công như cũ cho trình duyệt không hỗ trợ.
-  let hlRange = null;      // Range đang đăng ký Highlight
+  // Tô nền xanh thẫm đúng đoạn vi đang sửa. Vẽ overlay rect từ Range.getClientRects()
+  // (cách duy nhất chạy chắc chắn trên Firefox). VÌ FONT SF PRO NẠP XONG LÀM TEXT REFLOW
+  // (rect cũ sai kích thước), re-vẽ lại 1 lần sau 350ms và mỗi lần scroll/resize.
   let highlightLayer = null;
   let highlightSource = null;
+  let highlightTimer = null;
 
   function clearHighlight() {
-    try { if (window.CSS && CSS.highlights) CSS.highlights.delete('vp-sel'); } catch { /* cũ */ }
-    hlRange = null;
+    if (highlightTimer) { clearTimeout(highlightTimer); highlightTimer = null; }
     if (highlightLayer) { highlightLayer.remove(); highlightLayer = null; }
     highlightSource = null;
   }
 
-  function showHighlightFor(node, start, end) {
+  function showHighlightFor(node, start, end, recheck) {
     clearHighlight();
     try {
       const range = document.createRange();
       range.setStart(node, Math.max(0, Math.min(start, node.nodeValue.length)));
       range.setEnd(node, Math.max(0, Math.min(end, node.nodeValue.length)));
-      if (window.CSS && CSS.highlights) {
-        hlRange = range;   // Range sống: scroll/zoom không trôi, không cần vẽ lại
-        CSS.highlights.set('vp-sel', new Highlight(range));
-        return;
-      }
       const rects = [...range.getClientRects()];
       if (!rects.length) return;
       highlightLayer = el('div', 'vp-highlight-layer');
@@ -356,26 +359,28 @@
       }
       (document.body || document.documentElement).appendChild(highlightLayer);
       highlightSource = { node, start, end };
+      // Font load xong làm text reflow -> rect ban đầu có thể sai; vẽ lại khi font sẵn sàng
+      // (nếu chưa) rồi một nhịp nữa cho chắc. recheck=true chỉ đặt từ lần gọi đầu.
+      if (recheck && document.fonts && document.fonts.status !== 'loaded') {
+        document.fonts.ready.then(() => {
+          highlightTimer = setTimeout(() => {
+            if (highlightSource) showHighlightFor(highlightSource.node, highlightSource.start, highlightSource.end, false);
+          }, 60);
+        });
+      } else if (recheck) {
+        highlightTimer = setTimeout(() => {
+          if (highlightSource) showHighlightFor(node, start, end, false);
+        }, 350);
+      }
     } catch { /* node đã đổi giữa chừng — bỏ qua, card vẫn mở bình thường */ }
   }
 
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
-
-  function caretAt(x, y) {
-    if (document.caretRangeFromPoint) {
-      const range = document.caretRangeFromPoint(x, y);
-      if (range) return { node: range.startContainer, offset: range.startOffset };
-    } else if (document.caretPositionFromPoint) {
-      const pos = document.caretPositionFromPoint(x, y);
-      if (pos) return { node: pos.offsetNode, offset: pos.offset };
-    }
-    return { node: null, offset: -1 };
-  }
+  window.addEventListener('scroll', () => {
+    if (highlightSource) showHighlightFor(highlightSource.node, highlightSource.start, highlightSource.end, false);
+  }, { passive: true, capture: true });
+  window.addEventListener('resize', () => {
+    if (highlightSource) showHighlightFor(highlightSource.node, highlightSource.start, highlightSource.end, false);
+  });
 
   async function saveOverride(han, vi) {
     const resp = await send({ type: 'vp:override-set', han, vi });
@@ -454,8 +459,9 @@
       return v;
     }
 
+    let rendered = false;   // render() dau tien: vung ban dau (chua co thay doi -> khong setRange)
     function render() {
-      // Chip tung CHU Han: bam vao chu o dau/cuoi de THU nhe vung (F2 - sua tung ky tu).
+      // Chip tung CHU Han: bam vao chu o dau/cuoi de THU nhe vung (F2 - sua tong tu).
       hanBox.textContent = '';
       const before = state.from + '.' + state.to;
       const han = selHan();
@@ -497,7 +503,8 @@
       }
       const saveBtn = pop.querySelector('.vp-save');
       if (saveBtn) saveBtn.textContent = state.from === state.to ? 'Lưu' : 'Lưu (' + (state.to - state.from + 1) + ' từ)';
-      if (ctx.setRange && before !== state.from + '.' + state.to) ctx.setRange(state.from, state.to);
+      if (ctx.setRange && rendered && before !== state.from + '.' + state.to) ctx.setRange(state.from, state.to);
+      rendered = true;
     }
 
     const btns = el('div', 'vp-pop-btns');
@@ -590,7 +597,7 @@
     const tokenStart = spans.find(([start, idx]) => idx === tokenIdx)?.[0] ?? -1;
     if (tokenStart >= 0) {
       const nextStart = spans.find(([start, idx]) => idx === tokenIdx + 1)?.[0] ?? node.nodeValue.length;
-      showHighlightFor(node, tokenStart, Math.max(tokenStart + 1, nextStart));
+      showHighlightFor(node, tokenStart, Math.max(tokenStart + 1, nextStart), true);
     }
 
     showEditor(e.clientX, e.clientY, { han: token[0], vi: token[1], kind: token[2] }, {
@@ -608,6 +615,16 @@
 
   document.addEventListener('click', e => { onDocClick(e); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePop(); });
+  // Phím mũi tên khi đang gõ trong input/textarea của card KHÔNG được làm trang cuộn/chuyển
+  // chương (uukanshu đổi chương bằng mũi tên). Chặn ở WINDOW pha capture = chạy trước mọi
+  // handler của trang; chỉ dừng lan truyền (stopPropagation), KHÔNG preventDefault -> caret
+  // trong ô nhập vẫn di chuyển sang trái/phải bình thường.
+  window.addEventListener('keydown', e => {
+    if (!e.key || !e.key.startsWith('Arrow')) return;
+    const t = e.target;
+    const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    if (typing && t.closest && t.closest('.vp-pop')) e.stopPropagation();
+  }, { capture: true });
 
   // Doc config qua background (event page), khong doc chrome.storage truc tiep:
   // background la noi luu tru duy nhat va chac chan co chrome.storage (xem background.js).

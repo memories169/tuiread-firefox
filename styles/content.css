@@ -183,6 +183,15 @@ body.vp-mode-han .vp-orig {
   font-family: 'SF Pro Display', system-ui, sans-serif;
 }
 
+/* Bo nho sup: the span moi khong the nho hon text node cha - dam bao doc sach tai
+   moi kich thuoc, khong lam giat layout khi boc/unwrap */
+.vp-vi {
+  display: inline;
+  font-variant-ligatures: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
 
 /* F2: chip từng chữ Hán trong card sửa — bấm để thu vùng chọn */
 .vp-chip {
