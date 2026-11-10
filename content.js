@@ -560,6 +560,31 @@
     return { node: null, offset: -1 };
   }
 
+  // Chọn token bằng HIT-TEST HÌNH HỌC: dựng Range cho từng token (biết start/end trong
+  // chuỗi), lấy rect THẬT trên màn hình, token nào chứa điểm click thì chọn. Chính xác
+  // tuyệt đối vì đo chữ đã render — không lệch bởi font/reflow/user-select như
+  // caretRangeFromPoint (nhiều site tiểu thuyết đặt user-select:none để chống copy).
+  function tokenIndexAtPoint(node, tokens, spans, x, y) {
+    const len = node.nodeValue.length;
+    for (let k = 0; k < spans.length; k++) {
+      const [start, idx] = spans[k];
+      const t = tokens[idx];
+      if (!t || t[2] === 'raw') continue;
+      const end = k + 1 < spans.length ? spans[k + 1][0] : len;
+      if (end <= start) continue;
+      let range;
+      try {
+        range = document.createRange();
+        range.setStart(node, start);
+        range.setEnd(node, end);
+      } catch { continue; }
+      for (const rect of range.getClientRects()) {
+        if (x >= rect.left - 1 && x <= rect.right + 1 && y >= rect.top - 3 && y <= rect.bottom + 3) return idx;
+      }
+    }
+    return -1;
+  }
+
   async function onDocClick(e) {
     const pop = document.getElementById('vp-pop');
     if (pop) {
@@ -589,9 +614,8 @@
       const viNode = viSpan && viSpan.firstChild;
       if (viNode && viNode.nodeType === Node.TEXT_NODE && originals.has(viNode)) {
         node = viNode;
-        // offset ước lượng theo tỉ lệ dọc của click trong span (đủ dùng vì mỗi token
-        // sẽ được suy lại từ spans ngay sau đây)
-        offset = Math.min(viNode.nodeValue.length - 1, Math.max(0, Math.round((e.clientX - (viSpan.getBoundingClientRect().left || 0)) / Math.max(1, parseFloat(getComputedStyle(viSpan).fontSize) * 0.55))));
+        offset = -1;   // KHONG uoc luong offset theo X (sai voi chu Viet) — tokenIndexAtPoint
+                       // se chon token theo rect that; caret-offset chi la fallback.
       } else {
         return;
       }
@@ -602,10 +626,14 @@
     if (!resp || !resp.ok) return;
     const tokens = (resp.tokens && resp.tokens[0]) || [];
     const spans = (resp.spans && resp.spans[0]) || [];
-    let tokenIdx = -1;
-    for (const [start, idx] of spans) {
-      if (offset >= start) tokenIdx = idx;
-      else break;
+    // 1) Hit-test hình học theo rect thật của từng token (chính xác nhất).
+    let tokenIdx = tokenIndexAtPoint(node, tokens, spans, e.clientX, e.clientY);
+    // 2) Fallback: caret offset (trường hợp rect bị chặn/ẩn bởi overlay của trang).
+    if (tokenIdx < 0 && offset >= 0) {
+      for (const [start, idx] of spans) {
+        if (offset >= start) tokenIdx = idx;
+        else break;
+      }
     }
     if (tokenIdx < 0) return;
     const token = tokens[tokenIdx];
