@@ -275,6 +275,23 @@ export function createEngine(dicts, settings = {}) {
       }
     }
 
+    // Quy tắc ngữ cảnh cho PARTICLE 的 (bản đơn — cụm dài như 高高的/美丽的大 đã khớp
+    // trước đó): nghĩa thật phụ thuộc từ đứng trước/sau.
+    //   • 的 GIỮA 2 token có chữ Hán (A的B, A/B đều từ Hán)  -> 'của'  (雷火的淬炼
+    //     -> 'Lôi hỏa của rèn luyện'). VP gốc cho '/như thế/đích' — chọn 'như thế'
+    //     thì câu vỡ ('Kiếm khách như thế tôn nghiêm'); 'của' đúng loại từ trong đại
+    //     đa số trường hợp danh từ(danh từ) của văn tuổi trẻ.
+    //   • 的 ĐỨNG CUỐI (trước dấu/nội dung rỗng) hoặc SAU dấu -> giữ 'như thế' (dạng
+    //     '...的' kết cụm tính từ: 高高的山 thường đã khớp cụm; trường hợp sót hiếm).
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i];
+      if (t.han !== '的' || (t.kind !== 'vp1' && t.kind !== 'pa')) continue;
+      const prev = tokens[i - 1], next = tokens[i + 1];
+      const hanEnd = prev && prev.han && HAN_RE.test(prev.han[prev.han.length - 1]);
+      const hanStart = next && next.han && HAN_RE.test(next.han[0]);
+      if (hanEnd && hanStart) t.vi = 'của';
+    }
+
     // spans[i] = [vi tri trong chuoi vi, chi so token]: dung de map vi tri bam chuot ve token
     // (tokenMap click-to-edit). Toan bo buoc "rua" lam trong vong lap nay tren tung token
     // (`:.`->':', gom khoang trang, viet hoa dau cau) de spans dung tren chuoi cuoi cung -
