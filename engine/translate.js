@@ -186,7 +186,23 @@ export function createEngine(dicts, settings = {}) {
       // số chuẩn luôn đúng nên phải thắng khi hoà.
       if (hit && (hit.strong || longestVPLen(text, pos) < hit.end - pos)) {
         if (plainStart < pos) out.push({ kind: 'plain', text: text.slice(plainStart, pos) });
-        out.push({ kind: 'rule', text: hit.text, han: text.slice(pos, hit.end) });
+        // Template {n} của luật nhân: capture PHẢI được DỊCH TIẾP (nghĩa VP đầu
+        // tiên; thiếu thì phiên âm Hán Việt) — '{0} của hắn' với {0}='爷爷' ra
+        // 'ông của hắn', không giữ Hán.
+        let vi = hit.text;
+        if (hit.parts && hit.captures && hit.parts.some(p => p.ref !== undefined)) {
+          vi = hit.parts.map(p => {
+            if (p.ref === undefined) return p.lit;
+            const cap = hit.captures[p.ref] ?? '';
+            if (!cap) return '';
+            const whole = vp.get(cap);
+            if (whole !== undefined) return whole.split('/')[0].trim();
+            if ([...cap].length >= 2) return phienOf(cap);   // không VP nguyên: phiên âm TOÀN capture
+            const one = vpAt(cap, 0);
+            return one ? one.value.split('/')[0].trim() : phienOf(cap);
+          }).join('');
+        }
+        out.push({ kind: 'rule', text: vi, han: text.slice(pos, hit.end) });
         pos = hit.end;
         plainStart = pos;
         continue;
@@ -281,78 +297,9 @@ export function createEngine(dicts, settings = {}) {
       }
     }
 
-    // Gộp token ĐƠN CHỮ liền kề ngay TRƯỚC 的 thành 1 token (tên riêng 2 chữ chưa có
-    // trong dict bị tách rời: 章|岳|的|两人口中 — gộp thành 章岳 để rule 的 hoạt động
-    // đúng). Nghĩa ghép bằng khoảng cách: 'Chương' + 'nhạc' -> 'Chương nhạc'.
-    for (let i = 1; i < tokens.length - 1; i++) {
-      const a = tokens[i - 1], b = tokens[i], de = tokens[i + 1];
-      if (!a || !b || !de) continue;
-      if (de.han !== '的' || (de.kind !== 'vp1' && de.kind !== 'pa')) continue;
-      if (a.kind !== b.kind) continue;
-      if (a.kind !== 'vp1' && a.kind !== 'pa') continue;
-      if ([...a.han].length !== 1 || [...b.han].length !== 1) continue;
-      if (!HAN_RE.test(a.han) || !HAN_RE.test(b.han)) continue;
-      const joined = a.han + b.han;
-      tokens[i - 1] = { han: joined, vi: a.vi + ' ' + b.vi, kind: 'vp', raw: (a.raw || a.vi) + '/' + (b.raw || b.vi) };
-      tokens.splice(i, 1);   // bỏ token b — de token sau lùi về i
-      i--;                    // xét tiếp cặp trước đó (tên 3 chữ: 章|晓|峰)
-    }
-
-    // Gộp token ĐƠN CHỮ liền kề ngay SAU 的 thành tên (的|章|岳 -> 的|章岳) — đối
-    // xứng với gộp phía trước; giúp luật 的 nhìn thấy TÊN HOÀN CHỈNH (2+ chữ).
-    for (let i = 0; i < tokens.length - 2; i++) {
-      const de = tokens[i], a = tokens[i + 1], b = tokens[i + 2];
-      if (!de || !a || !b) continue;
-      if (de.han !== '的' || (de.kind !== 'vp1' && de.kind !== 'pa')) continue;
-      if (a.kind !== b.kind || (a.kind !== 'vp1' && a.kind !== 'pa')) continue;
-      if ([...a.han].length !== 1 || [...b.han].length !== 1) continue;
-      if (!HAN_RE.test(a.han) || !HAN_RE.test(b.han)) continue;
-      tokens[i + 1] = { han: a.han + b.han, vi: a.vi + ' ' + b.vi, kind: 'vpname', raw: (a.raw || a.vi) + '/' + (b.raw || b.vi) };
-      tokens.splice(i + 2, 1);
-    }
-
-    // Quy tắc ngữ cảnh cho PARTICLE 的 (bản đơn — cụm dài như 高高的/美丽的大 đã khớp
-    // trước đó): nghĩa thật phụ thuộc từ đứng trước/sau. VP gốc cho '/như thế/đích'.
-    //   • 的 GIỮA 2 token Hán ĐỘC LẬP (A的B) -> SỞ HỮU CÁCH tiếng Việt: 'B của A'.
-    //     ĐẢO TRẬT TỰ 2 token quanh 的: [A][的][B] -> [B][của][A]. Tiếng Trung đặt sở
-    //     hữu TRƯỚC danh từ (陆鸣的爷爷 = 'grandpa of Lục Minh') còn tiếng Việt đặt
-    //     SAU ('gia gia của Lục Minh') — không đảo thì câu sai ngữ pháp VN.
-    //     Điều kiện an toàn: A, B là token có NGHĨA VP (kind vp/vp1/name/gl/sup) và
-    //     chữ Hán ĐUÔI của A / ĐẦU của B (không phải dấu, không phải số-thuần).
-    //     Sau đảo vẫn giữ đúng spans vì spans sinh LẠI trong vòng ghép out dưới.
-    //   • 的 ĐỨNG CUỐI (trước dấu/kết chuỗi) hoặc SAU dấu -> giữ 'như thế'.
-    const flipable = k => k === 'vp' || k === 'vp1' || k === 'name' || k === 'gl' || k === 'sup';
-    for (let i = 0; i < tokens.length; i++) {
-      const t = tokens[i];
-      if (t.han !== '的' || (t.kind !== 'vp1' && t.kind !== 'pa')) continue;
-      const prev = tokens[i - 1], next = tokens[i + 1];
-      const hanEnd = prev && prev.han && HAN_RE.test(prev.han[prev.han.length - 1]);
-      const hanStart = next && next.han && HAN_RE.test(next.han[0]);
-      // SỞ HỮU CÁCH hay CÁCH GỌI? next là TÊN RIÊNG (kind 'name') hoặc cụm ghép từ
-      // token đơn chữ sau 的 (章岳) — '兩人口中的章岳' = 'hai người Chương Nhạc' (cách
-      // gọi, KHÔNG sở hữu) → bỏ 'của', đọc liền: prev + tên. Danh từ thường (爷爷,
-      // 淬炼) mới dùng 'của'.
-      const nextIsName = next && (next.kind === 'name' || next.kind === 'vpname');
-      if (hanEnd && hanStart) {
-        if (nextIsName) t.vi = '';   // cách gọi: 'hai người Chương Nhạc' — bỏ hẳn 的
-        else t.vi = 'của';
-      }
-      // ĐẢO chỉ khi prev là TỪ HOÀN CHỈNH (>= 2 chữ): prev 1 chữ thường là MẢNH của
-      // tên/cụm bị segmentation cắt rời (章|岳 + 的 + 两人口中) — đảo khi đó làm câu
-      // lộn xộn ('Chương trong miệng hai người của nhạc'). prev>=2 chữ + next là từ
-      // có nghĩa -> 'B của A' đúng ngữ pháp Việt (章岳的爷爷 -> 'gia gia của Chương Nhạc'
-      // khi tên khớp trọn; '爷爷' prev 2 chữ -> 'gia gia của Chương|Nhạc' vẫn ổn hơn).
-      // NEXT cũng phải là TỪ >= 2 chữ: next 1 chữ thường là MẢNH TÊN (而兩人口中的
-      // 章岳 -> 的 | 章 | 岳 — 章 là đầu tên bị tách; flip đưa 章 lên trước 的 làm
-      // câu xé lẻ: 'chương của trong miệng hai người nhạc'). Next 1 chữ chỉ flip khi
-      // cụm được gộp trọn (章岳 >= 2) — cụm ngắn hơn thì chỉ gán 'của', giữ trật tự.
-      if (hanEnd && hanStart && flipable(prev.kind) && flipable(next.kind)
-          && [...prev.han].length >= 2 && [...next.han].length >= 2) {
-        tokens[i - 1] = next;
-        tokens[i + 1] = prev;
-        i++;   // bỏ qua token B vừa đảo về trước — đã xử lý, tránh đảo ngược lại
-      }
-    }
+    // [ĐÃ BỎ] các quy tắc tự tạo quanh 的 (gộp token đơn chữ trước/sau 的 + đảo
+    // 'của' + cách gọi): xử lý 的 giờ CHỈ dựa vào LuatNhan ('…的<e>' đã loại,
+    // giữ các luật 'X的Y' có trong từ điển luật nhân) + VP/supplement có sẵn.
 
     // spans[i] = [vi tri trong chuoi vi, chi so token]: dung de map vi tri bam chuot ve token
     // (tokenMap click-to-edit). Toan bo buoc "rua" lam trong vong lap nay tren tung token

@@ -1,11 +1,12 @@
 // Rule engine QuickTranslate (subset): literal, (a|b), (a|b)?, <n:m-n>, <y:m-n>, <L>, {i}.
-// Rule cần <ne> <pn> <vp> <hv> <w> bị bỏ qua (đếm ở stats.skipped).
+// Rule cần <ne> <pn> <vp> <hv> bị bỏ qua (đếm ở stats.skipped). Token dự án: <n> <y> <L> <e> (từ thường) <w> (tự do) <u> (tên).
 
 import { isNumChar, isDigitChar, chineseNumberToArabic, digitByDigit, LABELS } from './numbers.js';
 
-const CAPTURE_RE = /^<([nyLe])(?::(\d+)(?:-(\d+))?)?>$/;
+const CAPTURE_RE = /^<([nyLewu])(?::(\d+)(?:-(\d+))?)?>$/;
 // set bởi createRuleEngine: chặn capture <e> khi là từ thường (xem createRuleEngine).
-let REJECT_CAPTURE = null;
+let REJECT_CAPTURE = null;   // token <e> bị chặn; <w> bỏ qua; <u> cần ACCEPT_NAME (tên)
+let ACCEPT_NAME = null;   // (chuỗi) => true nếu là TÊN RIÊNG (nghĩa VP viết hoa)
 // 1 chữ Hán (gồm CJK Ext-A) — dùng cho token <e> (run chữ Hán bất kỳ, {0} của LuatNhan).
 const HAN_1 = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
 
@@ -13,7 +14,7 @@ const HAN_1 = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
 function hasUnsupportedToken(pattern) {
   for (const m of pattern.matchAll(/<([^>]*)>/g)) {
     const kind = m[1].split(':')[0];
-    if (kind !== 'n' && kind !== 'y' && kind !== 'L' && kind !== 'e') return true;
+    if (kind !== 'n' && kind !== 'y' && kind !== 'L' && kind !== 'e' && kind !== 'w' && kind !== 'u') return true;
   }
   return false;
 }
@@ -35,6 +36,8 @@ function tokenize(pattern) {
       const max = m[3] ? Number(m[3]) : (kind === 'L' ? 1 : (m[2] ? Number(m[2]) : 8));
       if (kind === 'L') tokens.push({ t: 'label' });
       else if (kind === 'e') tokens.push({ t: 'han', min, max });
+      else if (kind === 'w') tokens.push({ t: 'han', min, max, free: true });   // <w> bỏ qua rejectCapture
+      else if (kind === 'u') tokens.push({ t: 'han', min, max, free: true, nameOk: true });   // <u> chỉ nhận TÊN (nghĩa VP viết hoa)
       else tokens.push({ t: kind === 'n' ? 'num' : 'year', min, max });
       i = close + 1;
       continue;
@@ -128,7 +131,8 @@ function walk(tokens, ti, text, pos, captures) {
     const limit = Math.min(run, tok.max);
     for (let take = limit; take >= tok.min; take--) {
       const cap = text.slice(pos, pos + take);
-      if (REJECT_CAPTURE && REJECT_CAPTURE(cap)) continue;   // từ thường có nghĩa — không làm {0}
+      if (tok.nameOk === true) { if (!ACCEPT_NAME || !ACCEPT_NAME(cap)) continue; }
+      else if (tok.free !== true && REJECT_CAPTURE && REJECT_CAPTURE(cap)) continue;   // <e> từ thường nhường VP; <w> tự do
       const hit = walk(tokens, ti + 1, text, pos + take, captures.concat([cap]));
       if (hit) return hit;
     }
@@ -162,6 +166,7 @@ export function createRuleEngine(ruleText, opts = {}) {
   // <e> nuốt TỪ THƯỜNG có nghĩa trong VP/sup (LuatNhan {0} là TÊN RIÊNG): '厉害'
   // có nghĩa → rule '个很<e>的人' nhường cho VP/sup đường cũ.
   REJECT_CAPTURE = opts.rejectCapture || null;
+  ACCEPT_NAME = opts.acceptName || null;
   const direct = new Map();
   const anchors = new Map();
   let maxLookahead = 0;
@@ -176,10 +181,11 @@ export function createRuleEngine(ruleText, opts = {}) {
         if (tok.t === 'lit') { anchorToken = { v: tok.v }; break; }
         if (tok.t === 'group' && !tok.optional) { anchorToken = { v: tok.alts[0], alts: tok.alts }; break; }
         if (tok.t === 'label') { min += 1; max += 1; continue; }
+        if (tok.min == null || tok.max == null) continue;   // group (a|b)? — không có min/max
         min += tok.min; max += tok.max;
       }
       if (!anchorToken) continue;
-      maxLookahead = Math.max(maxLookahead, max);
+      if (Number.isFinite(max)) maxLookahead = Math.max(maxLookahead, max);
       const keys = anchorToken.alts ? anchorToken.alts.map(a => a[0]) : [anchorToken.v[0]];
       for (const key of keys) {
         if (!anchors.has(key)) anchors.set(key, []);
@@ -194,7 +200,7 @@ export function createRuleEngine(ruleText, opts = {}) {
   }
 
   // Trả về { end, text } nếu có rule khớp tại start, ngược lại null.
-  function matchAt(text, start) {
+  function matchAt(text, start, __dbg) {
     const candidates = (direct.get(text[start]) || []).slice();
     if (anchors.size && maxLookahead) {
       const seen = new Set(candidates);
@@ -214,12 +220,14 @@ export function createRuleEngine(ruleText, opts = {}) {
     }
     if (candidates.length > 1) candidates.sort((a, b) => a.order - b.order);
     for (const rule of candidates) {
+      if (__dbg) console.log("cand", rule.pattern);
       const hit = walk(rule.tokens, 0, text, start, []);
+      if (__dbg && hit) console.log("hit", JSON.stringify(hit));
       if (!hit || hit.end === start) continue;
-      return { end: hit.end, text: render(rule.parts, hit.captures), rule: rule.pattern, strong: !!rule.strong };
+      return { end: hit.end, text: render(rule.parts, hit.captures), rule: rule.pattern, strong: !!rule.strong, parts: rule.parts, captures: hit.captures };
     }
     return null;
   }
 
-  return { matchAt, count: rules.length, stats };
+  return { matchAt, count: rules.length, stats, __ANCHORS: anchors, __DIRECT: direct, __MAXLOOK: maxLookahead };
 }

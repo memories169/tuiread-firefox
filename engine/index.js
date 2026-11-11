@@ -63,11 +63,19 @@ export async function loadEngine(readFile, settings = {}) {
     for (const ch of cap) {
       if (pronounsEarly.has(ch)) return true;
       // chữ đơn có nghĩa VP (vp1) — từ thường: '普通的水' capture '水'
-      if (vpEarly.has(ch) && cap.length <= 2) return true;
+      if (cap.length === 1 && vpEarly.has(ch)) return true;
     }
     return false;
   };
-  const rules = createRuleEngine(decode(bufs.rules) + '\n' + (bufs.luatNhan ? decode(bufs.luatNhan) : ''), { rejectCapture });
+  // TÊN RIÊNG (cho token <u> của luật '…的…'): nghĩa VP đầu tiên viết HOA
+  // ('陆鸣'->'Lục Minh') — cụm thường ('他是'->'hắn là') không phải tên.
+  const acceptName = cap => {
+    const val = vpEarly.get(cap);
+    if (val === undefined) return cap.length <= 3;   // không trong VP: coi là tên mảnh
+    const first = val.split('/')[0].trim();
+    return /^[A-ZÀ-ỸĐ]/.test(first);
+  };
+  const rules = createRuleEngine(decode(bufs.rules) + '\n' + (bufs.luatNhan ? decode(bufs.luatNhan) : ''), { rejectCapture, acceptName });
   // Lớp supplement gộp 2 nguồn: Pack-UuHoa (cộng đồng, nạp trước) < Supplement.txt (bản vá
   // tay của dự án, nạp sau -> thắng khi trùng key). Cả hai nằm dưới override của user.
   const pack = bufs.pack ? parseDict(decode(bufs.pack)) : new Map();

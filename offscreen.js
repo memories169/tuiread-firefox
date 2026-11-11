@@ -183,11 +183,16 @@ function mergeLuatNhan(ruleEngine, luatNhanText) {
       }
       for (const ch of cap) {
         if (DATA.pronouns && DATA.pronouns.has(ch)) return true;
-        if (DATA.vp.has(ch) && cap.length <= 2) return true;
+        if (cap.length === 1 && DATA.vp.has(ch)) return true;
       }
       return false;
     };
-    const extra = createRuleEngine(luatNhanText, { rejectCapture });
+    const acceptName = cap => {
+      const val = DATA.vp.get(cap);
+      if (val === undefined) return cap.length <= 3;
+      return /^[A-ZÀ-ỸĐ]/.test(val.split('/')[0].trim());
+    };
+    const extra = createRuleEngine(luatNhanText, { rejectCapture, acceptName });
     if (!extra || !extra.count) return ruleEngine;
     return {
       matchAt(text, pos) {
