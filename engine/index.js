@@ -50,8 +50,22 @@ export async function loadEngine(readFile, settings = {}) {
     ...(bufs.pack ? parseDict(decode(bufs.pack)) : []),
     ...(bufs.supplement ? parseDict(decode(bufs.supplement)) : [])
   ]);
+  const pronounsEarly = parseDict(decode(bufs.pronouns));
   const rejectCapture = cap => {
-    return vpEarly.has(cap) || supEarly.has(cap);   // CHỈ whole capture là từ có nghĩa
+    if (vpEarly.has(cap) || supEarly.has(cap) || pronounsEarly.has(cap)) return true;
+    // capture CHỨA từ VP/sup >= 2 chữ bên trong → không phải tên thuần → nhường
+    for (let i = 0; i + 2 <= cap.length; i++) {
+      for (let len = 2; i + len <= cap.length; len++) {
+        if (vpEarly.has(cap.slice(i, i + len)) || supEarly.has(cap.slice(i, i + len))) return true;
+      }
+    }
+    // capture chứa ĐẠI TỪ (她/他/它/他们…, 1 chữ là đủ) → danh ngữ đại từ, không phải tên
+    for (const ch of cap) {
+      if (pronounsEarly.has(ch)) return true;
+      // chữ đơn có nghĩa VP (vp1) — từ thường: '普通的水' capture '水'
+      if (vpEarly.has(ch) && cap.length <= 2) return true;
+    }
+    return false;
   };
   const rules = createRuleEngine(decode(bufs.rules) + '\n' + (bufs.luatNhan ? decode(bufs.luatNhan) : ''), { rejectCapture });
   // Lớp supplement gộp 2 nguồn: Pack-UuHoa (cộng đồng, nạp trước) < Supplement.txt (bản vá

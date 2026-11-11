@@ -19,7 +19,7 @@ const MAX_ENTRIES = 30000;   // Trần tổng, vượt thì prune còn lại m�
 const MEM_MAX = 8000;        // Trần tầng RAM (L1) để heap offscreen không phình vô hạn
 
 // Tăng khi thay đổi file trong dict/ hoặc cách parse: cache cũ tự chết theo key.
-export const DICT_VERSION = 11;   // bump: them LuatNhan 7024 rule + <e> token + rejectCapture   // bump: 的 + ten rieng -> bo của (cach goi)   // bump: flip chi khi next >= 2 chu (ten bi tach sau 的)   // bump: gop token don chu truoc 的 + guard flip   // bump: token 5 phan tu (them raw nghia)   // bump: default firstMeaning off (hien tat ca nghia)   // bump: dao thu tu A的B -> B của A   // bump: quy tac ngu canh cho 的 (của/như thế)   // bump: sua span lech khi trim (dinh dang cau moi)
+export const DICT_VERSION = 12;   // bump: gop LuatNhan 2 nguon 24825 rule (dedup) + rejectCapture mo rong   // bump: them LuatNhan 7024 rule + <e> token + rejectCapture   // bump: 的 + ten rieng -> bo của (cach goi)   // bump: flip chi khi next >= 2 chu (ten bi tach sau 的)   // bump: gop token don chu truoc 的 + guard flip   // bump: token 5 phan tu (them raw nghia)   // bump: default firstMeaning off (hien tat ca nghia)   // bump: dao thu tu A的B -> B của A   // bump: quy tac ngu canh cho 的 (của/như thế)   // bump: sua span lech khi trim (dinh dang cau moi)
 
 let dbPromise = null;
 let mem = new Map();         // key -> entry; L1 cho hit tức thì, đồng thời là fallback

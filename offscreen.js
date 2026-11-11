@@ -172,7 +172,22 @@ let appliedOverridesVersion = -1;
 function mergeLuatNhan(ruleEngine, luatNhanText) {
   if (!ruleEngine || !luatNhanText) return ruleEngine;
   try {
-    const extra = createRuleEngine(luatNhanText);
+    // rejectCapture giống engine/index.js: capture <e> của LuatNhan là TÊN —
+    // từ thường có nghĩa trong VP/supplement thì rule nhường.
+    const rejectCapture = cap => {
+      if (DATA.vp.has(cap) || (DATA.supplement && DATA.supplement.has(cap)) || (DATA.pronouns && DATA.pronouns.has(cap))) return true;
+      for (let i = 0; i + 2 <= cap.length; i++) {
+        for (let len = 2; i + len <= cap.length; len++) {
+          if (DATA.vp.has(cap.slice(i, i + len)) || (DATA.supplement && DATA.supplement.has(cap.slice(i, i + len)))) return true;
+        }
+      }
+      for (const ch of cap) {
+        if (DATA.pronouns && DATA.pronouns.has(ch)) return true;
+        if (DATA.vp.has(ch) && cap.length <= 2) return true;
+      }
+      return false;
+    };
+    const extra = createRuleEngine(luatNhanText, { rejectCapture });
     if (!extra || !extra.count) return ruleEngine;
     return {
       matchAt(text, pos) {
