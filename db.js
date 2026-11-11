@@ -19,7 +19,7 @@ const MAX_ENTRIES = 30000;   // Trần tổng, vượt thì prune còn lại m�
 const MEM_MAX = 8000;        // Trần tầng RAM (L1) để heap offscreen không phình vô hạn
 
 // Tăng khi thay đổi file trong dict/ hoặc cách parse: cache cũ tự chết theo key.
-export const DICT_VERSION = 14;   // bump: phien am ten rieng trong {0} viet hoa
+export const DICT_VERSION = 15;   // bump: nhom luat giu trat tu Hán X的Y (khong "của")
 
 let dbPromise = null;
 let mem = new Map();         // key -> entry; L1 cho hit tức thì, đồng thời là fallback

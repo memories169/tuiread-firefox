@@ -8455,6 +8455,21 @@
 !龙神的<w>={0} của long thần
 !龙组的<w>={0} của long tổ
 !龟裂的<w>={0} nứt nẻ
+# --- Luật giữ trật tự Hán: X的Y -> "X Y" (không đảo, không "của") ---
+!<e>的小女孩={0} tiểu nữ hài
+!<e>的小丫头={0} tiểu nha đầu
+!<e>的小姑娘={0} tiểu cô nương
+!<e>的小家伙={0} tiểu gia hỏa
+!<e>的儿子={0} nhi tử
+!<e>的女儿={0} nữ nhi
+!<e>的师父={0} sư phụ
+!<e>的师傅={0} sư phụ
+!<e>的爷爷={0} gia gia
+!<e>的奶奶={0} nãi nãi
+!<e>的哥哥={0} ca ca
+!<e>的姐姐={0} tỷ tỷ
+!<e>的弟弟={0} đệ đệ
+!<e>的妹妹={0} muội muội
 !<u:1-3>的<w:1-6>={1} của {0}
 !知道我为什么这么看好<e>吗=biết tại sao ta coi trọng {0} như vậy không
 !不知道是不是受到了<e>的影响=không biết có phải là bị ảnh hưởng của {0} hay không
