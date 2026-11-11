@@ -51,7 +51,9 @@ export async function loadEngine(readFile, settings = {}) {
     ...(bufs.supplement ? parseDict(decode(bufs.supplement)) : [])
   ]);
   const pronounsEarly = parseDict(decode(bufs.pronouns));
+  const FUNC_FIRST = '是非乃为即系而这那把被对和与跟从向到让使给有在都也就才又再还很挺蛮但可是不';
   const rejectCapture = cap => {
+    if (FUNC_FIRST.includes(cap[0])) return true;   // '为陆檬檬' — đầu cụm là động từ/chức năng
     if (vpEarly.has(cap) || supEarly.has(cap) || pronounsEarly.has(cap)) return true;
     // capture CHỨA từ VP/sup >= 2 chữ bên trong → không phải tên thuần → nhường
     for (let i = 0; i + 2 <= cap.length; i++) {
@@ -70,12 +72,16 @@ export async function loadEngine(readFile, settings = {}) {
   // TÊN RIÊNG (cho token <u> của luật '…的…'): nghĩa VP đầu tiên viết HOA
   // ('陆鸣'->'Lục Minh') — cụm thường ('他是'->'hắn là') không phải tên.
   const acceptName = cap => {
+    // Chặn chữ ĐẦU CỤM là TỪ CHỨC NĂNG ('是陆鸣' — '是' động từ, không phải tên):
+    const FUNC_FIRST = '是非乃为即系而这那把被对和与跟从向到让使给有在都也就才又再还很挺蛮但可是不';
+    if (FUNC_FIRST.includes(cap[0])) return false;
     const val = vpEarly.get(cap);
     if (val === undefined) return cap.length <= 3;   // không trong VP: coi là tên mảnh
     const first = val.split('/')[0].trim();
     return /^[A-ZÀ-ỸĐ]/.test(first);
   };
-  const rules = createRuleEngine(decode(bufs.rules) + '\n' + (bufs.luatNhan ? decode(bufs.luatNhan) : ''), { rejectCapture, acceptName });
+  const acceptWhole = cap => vpEarly.has(cap);
+  const rules = createRuleEngine(decode(bufs.rules) + '\n' + (bufs.luatNhan ? decode(bufs.luatNhan) : ''), { rejectCapture, acceptName, acceptWhole });
   // Lớp supplement gộp 2 nguồn: Pack-UuHoa (cộng đồng, nạp trước) < Supplement.txt (bản vá
   // tay của dự án, nạp sau -> thắng khi trùng key). Cả hai nằm dưới override của user.
   const pack = bufs.pack ? parseDict(decode(bufs.pack)) : new Map();

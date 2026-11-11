@@ -181,8 +181,12 @@ async function loadUserRulesText() {
   if (userRulesCache.version === version && userRulesCache.text) return userRulesCache.text;
   const map = store ? (store.userRules || {}) : {};
   // {0} trong luật user là cú pháp NGƯỜI DÙNG — engine hiểu <e> (run Hán 1..8).
+  // Pattern user có thể viết chữ PHỔNG (名為) — matchAt chạy trên text GIẢN THỂ
+  // nên chuyển T2S trước qua bảng DATA.t2s (per-char).
+  const t2sMap = DATA.t2s || new Map();
+  const simplify = s => [...s].map(ch => t2sMap.get(ch) || ch).join('');
   const lines = Object.entries(map).map(([pat, vi]) =>
-    pat.replace(/\{(\d+)\}/g, (_, n) => (n === '0' ? '<e>' : `{${n}}`)) + '=' + vi
+    simplify(pat).replace(/\{(\d+)\}/g, (_, n) => (n === '0' ? '<e>' : `{${n}}`)) + '=' + vi
   ).join('\n');
   userRulesCache = { version, text: lines };
   return lines;
@@ -199,6 +203,7 @@ function mergeLuatNhan(ruleEngine, luatNhanText) {
     // rejectCapture giống engine/index.js: capture <e> của LuatNhan là TÊN —
     // từ thường có nghĩa trong VP/supplement thì rule nhường.
     const rejectCapture = cap => {
+      if (FUNC_FIRST.includes(cap[0])) return true;
       if (DATA.vp.has(cap) || (DATA.supplement && DATA.supplement.has(cap)) || (DATA.pronouns && DATA.pronouns.has(cap))) return true;
       for (let i = 0; i + 2 <= cap.length; i++) {
         for (let len = 2; i + len <= cap.length; len++) {
@@ -211,12 +216,15 @@ function mergeLuatNhan(ruleEngine, luatNhanText) {
       }
       return false;
     };
+    const FUNC_FIRST = '是非乃为即系而这那把被对和与跟从向到让使给有在都也就才又再还很挺蛮但可是不';
     const acceptName = cap => {
+      if (FUNC_FIRST.includes(cap[0])) return false;   // '是陆鸣' — động từ đứng đầu, không phải tên
       const val = DATA.vp.get(cap);
       if (val === undefined) return cap.length <= 3;
       return /^[A-ZÀ-ỸĐ]/.test(val.split('/')[0].trim());
     };
-    const extra = createRuleEngine(luatNhanText, { rejectCapture, acceptName });
+    const acceptWhole = cap => DATA.vp.has(cap);
+    const extra = createRuleEngine(luatNhanText, { rejectCapture, acceptName, acceptWhole });
     if (!extra || !extra.count) return ruleEngine;
     return {
       matchAt(text, pos) {

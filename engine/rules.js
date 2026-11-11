@@ -3,10 +3,11 @@
 
 import { isNumChar, isDigitChar, chineseNumberToArabic, digitByDigit, LABELS } from './numbers.js';
 
-const CAPTURE_RE = /^<([nyLewu])(?::(\d+)(?:-(\d+))?)?>$/;
+const CAPTURE_RE = /^<([nyLewup])(?::(\d+)(?:-(\d+))?)?>$/;
 // set bởi createRuleEngine: chặn capture <e> khi là từ thường (xem createRuleEngine).
 let REJECT_CAPTURE = null;   // token <e> bị chặn; <w> bỏ qua; <u> cần ACCEPT_NAME (tên)
 let ACCEPT_NAME = null;   // (chuỗi) => true nếu là TÊN RIÊNG (nghĩa VP viết hoa)
+let ACCEPT_WHOLE = null;   // (chuỗi) => true nếu capture nguyên là key VP (danh từ hợp lệ)
 // 1 chữ Hán (gồm CJK Ext-A) — dùng cho token <e> (run chữ Hán bất kỳ, {0} của LuatNhan).
 const HAN_1 = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
 
@@ -14,7 +15,7 @@ const HAN_1 = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
 function hasUnsupportedToken(pattern) {
   for (const m of pattern.matchAll(/<([^>]*)>/g)) {
     const kind = m[1].split(':')[0];
-    if (kind !== 'n' && kind !== 'y' && kind !== 'L' && kind !== 'e' && kind !== 'w' && kind !== 'u') return true;
+    if (kind !== 'n' && kind !== 'y' && kind !== 'L' && kind !== 'e' && kind !== 'w' && kind !== 'u' && kind !== 'p') return true;
   }
   return false;
 }
@@ -38,6 +39,7 @@ function tokenize(pattern) {
       else if (kind === 'e') tokens.push({ t: 'han', min, max });
       else if (kind === 'w') tokens.push({ t: 'han', min, max, free: true });   // <w> bỏ qua rejectCapture
       else if (kind === 'u') tokens.push({ t: 'han', min, max, free: true, nameOk: true });   // <u> chỉ nhận TÊN (nghĩa VP viết hoa)
+      else if (kind === 'p') tokens.push({ t: 'han', min, max, allowWhole: true });   // <p> như <e> + nhận nguyên từ VP
       else tokens.push({ t: kind === 'n' ? 'num' : 'year', min, max });
       i = close + 1;
       continue;
@@ -132,6 +134,11 @@ function walk(tokens, ti, text, pos, captures) {
     for (let take = limit; take >= tok.min; take--) {
       const cap = text.slice(pos, pos + take);
       if (tok.nameOk === true) { if (!ACCEPT_NAME || !ACCEPT_NAME(cap)) continue; }
+      else if (tok.allowWhole === true) {
+        // <p>: từ thường nhường VP, NHƯNG capture NGUYÊN là key VP thì nhận
+        // (quan hệ '爷爷/妹妹'... trong luật X的Y là danh từ, không phải rác).
+        if (REJECT_CAPTURE && REJECT_CAPTURE(cap) && !ACCEPT_WHOLE(cap)) continue;
+      }
       else if (tok.free !== true && REJECT_CAPTURE && REJECT_CAPTURE(cap)) continue;   // <e> từ thường nhường VP; <w> tự do
       const hit = walk(tokens, ti + 1, text, pos + take, captures.concat([cap]));
       if (hit) return hit;
@@ -167,6 +174,7 @@ export function createRuleEngine(ruleText, opts = {}) {
   // có nghĩa → rule '个很<e>的人' nhường cho VP/sup đường cũ.
   REJECT_CAPTURE = opts.rejectCapture || null;
   ACCEPT_NAME = opts.acceptName || null;
+  ACCEPT_WHOLE = opts.acceptWhole || null;
   const direct = new Map();
   const anchors = new Map();
   let maxLookahead = 0;
