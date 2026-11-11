@@ -195,11 +195,20 @@ export function createEngine(dicts, settings = {}) {
             if (p.ref === undefined) return p.lit;
             const cap = hit.captures[p.ref] ?? '';
             if (!cap) return '';
+            // Viết hoa phiên âm Hán-Việt khi capture là TÊN RIÊNG: nghĩa VP nguyên
+            // bắt đầu chữ hoa ('陆鸣'->'Lục Minh') hoặc cụm không trong VP ('章岳'
+            // -> 'Chương Nhạc'). Cụm thường ('两人口中') không đi đường này.
             const whole = vp.get(cap);
-            if (whole !== undefined) return whole.split('/')[0].trim();
-            if ([...cap].length >= 2) return phienOf(cap);   // không VP nguyên: phiên âm TOÀN capture
+            const isName = whole !== undefined
+              ? /^[A-ZÀ-ỸĐ]/.test(whole.split('/')[0].trim())
+              : [...cap].length >= 2;
+            const render = s => isName
+              ? s.split(/\s+/).map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ')
+              : s;
+            if (whole !== undefined) return render(whole.split('/')[0].trim());
+            if ([...cap].length >= 2) return render(phienOf(cap));   // không VP nguyên: phiên âm TOÀN capture
             const one = vpAt(cap, 0);
-            return one ? one.value.split('/')[0].trim() : phienOf(cap);
+            return one ? render(one.value.split('/')[0].trim()) : phienOf(cap);
           }).join('');
         }
         out.push({ kind: 'rule', text: vi, han: text.slice(pos, hit.end) });
