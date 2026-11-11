@@ -15,7 +15,7 @@ import { DICT_VERSION, setKeyContext, makeKey, cacheGet, cachePut, cachePrune, c
 // MARKER PHIÊN BẢN ENGINE: in ra console của background/offscreen để xác minh bản
 // đang chạy; 'build' kèm trong MỌI response — content/popup cảnh báo khi lệch bản
 // (chống 'zombie engine view' sống sót qua Reload add-on trả kết quả cũ).
-const ENGINE_BUILD = '0.6.3';
+const ENGINE_BUILD = '0.7.0';
 console.log('[TuiRead] engine build ' + ENGINE_BUILD + ' (DICT_VERSION ' + DICT_VERSION + ', có quy tắc 的)');
 
 const DATA = { vp: null, names: null, pa: null, pronouns: null, t2s: null, rules: null, supplement: null };
@@ -54,6 +54,7 @@ const ENGINE_CACHE_MAX = 4;
 const LOAD_ORDER = [
   { key: 't2s', file: FILES.t2s, label: 'Bảng 繁→簡', parse: text => parseT2S(text) },
   { key: 'rules', file: FILES.rules, label: 'Rule QuickTranslate', parse: text => createRuleEngine(text) },
+  { key: 'luatNhan', file: FILES.luatNhan, label: 'Luật nhân (LuatNhan)', parse: text => text },
   { key: 'pa', file: FILES.pa, label: 'Phiên âm Hán Việt', parse: text => parseDict(text, { singleChar: true }) },
   { key: 'pronouns', file: FILES.pronouns, label: 'Đại từ', parse: text => parseDict(text) },
   { key: 'pack', file: FILES.pack, label: 'Pack-UuHoa (cộng đồng)', parse: text => parseDict(text), optional: true },
@@ -166,6 +167,27 @@ async function fetchSettings() {
 let appliedEngineSettings = {};
 let appliedOverridesVersion = -1;
 
+// Gộp LuatNhan vào rule engine: dựng engine phụ rồi hợp rules (LuatNhan thắng khi
+// cùng key anchor — nối sau). Không đụng rule.txt trên đĩa.
+function mergeLuatNhan(ruleEngine, luatNhanText) {
+  if (!ruleEngine || !luatNhanText) return ruleEngine;
+  try {
+    const extra = createRuleEngine(luatNhanText);
+    if (!extra || !extra.count) return ruleEngine;
+    return {
+      matchAt(text, pos) {
+        const a = extra.matchAt(text, pos);
+        const b = ruleEngine.matchAt(text, pos);
+        // Cả 2 khớp: lấy khớp DÀI HƠN (end lớn) — cụm cụ thể thắng run chữ Hán chung.
+        if (a && b) return a.end >= b.end ? a : b;
+        return a || b;
+      },
+      count: ruleEngine.count + extra.count,
+      stats: ruleEngine.stats
+    };
+  } catch { return ruleEngine; }
+}
+
 // Key cache phải chết khi bất cứ thứ gì đổi kết quả dịch: dict, supplement, settings ảnh hưởng engine,
 // và layer override (bump version mỗi lần user vá một từ).
 function cacheContextParts(settings) {
@@ -212,7 +234,7 @@ async function rebuild(reason) {
   }
   const glossary = new Map(Object.entries(glossariesMap[bookEngineKey] || {}));
   engine = createEngine(
-    { pa: DATA.pa, vp: DATA.vp, names: DATA.names, pronouns: DATA.pronouns, t2s: DATA.t2s, rules: DATA.rules, overrides: overridesMap, glossary, supplement: supplementMerged, vpMax: DATA_MAX.vpMax, namesMax: DATA_MAX.namesMax },
+    { pa: DATA.pa, vp: DATA.vp, names: DATA.names, pronouns: DATA.pronouns, t2s: DATA.t2s, rules: mergeLuatNhan(DATA.rules, DATA.luatNhan), overrides: overridesMap, glossary, supplement: supplementMerged, vpMax: DATA_MAX.vpMax, namesMax: DATA_MAX.namesMax },
     settings
   );
   engineByBook.set(bookEngineKey, engine);

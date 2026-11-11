@@ -260,6 +260,10 @@ export function createEngine(dicts, settings = {}) {
 
     const simplified = toSimplified(normalizePunct(original), t2s);
     let tokens = [];
+    // THỨ TỰ LỚP: ov > gl > supplement > RULES > names > VP/PA. Supplement trước
+    // rules: sup ('很', '点'...) xẻ nghĩa nhỏ ở vị trí ĐÚNG; rule (LuatNhan strong)
+    // chỉ thắng khi còn khớp TRỌN đoạn không bị sup chia (hoặc hoà VP nhờ strong —
+    // LuatNhan cụm chuẩn hơn ghép VP rời).
     for (const piece of segmentOverrides(simplified)) {
       if (piece.kind === 'ov') { tokens.push({ han: piece.han, vi: piece.text, kind: 'ov' }); continue; }
       for (const gseg of segmentGlossary(piece.text)) {

@@ -3,13 +3,17 @@
 
 import { isNumChar, isDigitChar, chineseNumberToArabic, digitByDigit, LABELS } from './numbers.js';
 
-const CAPTURE_RE = /^<([nyL])(?::(\d+)(?:-(\d+))?)?>$/;
+const CAPTURE_RE = /^<([nyLe])(?::(\d+)(?:-(\d+))?)?>$/;
+// set bởi createRuleEngine: chặn capture <e> khi là từ thường (xem createRuleEngine).
+let REJECT_CAPTURE = null;
+// 1 chữ Hán (gồm CJK Ext-A) — dùng cho token <e> (run chữ Hán bất kỳ, {0} của LuatNhan).
+const HAN_1 = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
 
 // <ne> <pn> <vp> <hv> <w> can tra tu dien khi match -> chưa hỗ trợ.
 function hasUnsupportedToken(pattern) {
   for (const m of pattern.matchAll(/<([^>]*)>/g)) {
     const kind = m[1].split(':')[0];
-    if (kind !== 'n' && kind !== 'y' && kind !== 'L') return true;
+    if (kind !== 'n' && kind !== 'y' && kind !== 'L' && kind !== 'e') return true;
   }
   return false;
 }
@@ -30,6 +34,7 @@ function tokenize(pattern) {
       const min = m[2] ? Number(m[2]) : 1;
       const max = m[3] ? Number(m[3]) : (kind === 'L' ? 1 : (m[2] ? Number(m[2]) : 8));
       if (kind === 'L') tokens.push({ t: 'label' });
+      else if (kind === 'e') tokens.push({ t: 'han', min, max });
       else tokens.push({ t: kind === 'n' ? 'num' : 'year', min, max });
       i = close + 1;
       continue;
@@ -87,7 +92,7 @@ export function parseRules(text) {
     if (!tokens.some(t => t.t === 'lit' || (t.t === 'group' && !t.optional))) { stats.skippedInvalid++; continue; }
     const parts = parseTemplate(template);
     const refs = parts.filter(p => p.ref !== undefined).length;
-    const captures = tokens.filter(t => t.t === 'num' || t.t === 'year' || t.t === 'label').length;
+    const captures = tokens.filter(t => t.t === 'num' || t.t === 'year' || t.t === 'label' || t.t === 'han').length;
     if (refs !== captures) { stats.skippedInvalid++; continue; }
     rules.push({ pattern, parts, tokens, order: rules.length, strong });
   }
@@ -116,6 +121,19 @@ function walk(tokens, ti, text, pos, captures) {
     if (!label) return null;
     return walk(tokens, ti + 1, text, pos + 1, captures.concat([label]));
   }
+  if (tok.t === 'han') {
+    let run = 0;
+    while (pos + run < text.length && HAN_1.test(text[pos + run])) run++;
+    if (run < tok.min) return null;
+    const limit = Math.min(run, tok.max);
+    for (let take = limit; take >= tok.min; take--) {
+      const cap = text.slice(pos, pos + take);
+      if (REJECT_CAPTURE && REJECT_CAPTURE(cap)) continue;   // từ thường có nghĩa — không làm {0}
+      const hit = walk(tokens, ti + 1, text, pos + take, captures.concat([cap]));
+      if (hit) return hit;
+    }
+    return null;
+  }
   const pred = tok.t === 'num' ? isNumChar : isDigitChar;
   let run = 0;
   while (pos + run < text.length && pred(text[pos + run])) run++;
@@ -138,8 +156,12 @@ function render(parts, captures) {
   return out;
 }
 
-export function createRuleEngine(ruleText) {
+export function createRuleEngine(ruleText, opts = {}) {
   const { rules, stats } = parseRules(ruleText);
+  // rejectCapture: (chuỗi) => true nếu chuỗi KHÔNG được phép làm {0} — dùng để chặn
+  // <e> nuốt TỪ THƯỜNG có nghĩa trong VP/sup (LuatNhan {0} là TÊN RIÊNG): '厉害'
+  // có nghĩa → rule '个很<e>的人' nhường cho VP/sup đường cũ.
+  REJECT_CAPTURE = opts.rejectCapture || null;
   const direct = new Map();
   const anchors = new Map();
   let maxLookahead = 0;

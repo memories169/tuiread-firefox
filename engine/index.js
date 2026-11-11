@@ -12,6 +12,7 @@ const FILES = {
   pa: 'ChinesePhienAmWords.txt',
   pronouns: 'Pronouns.txt',
   rules: 'rule.txt',
+  luatNhan: 'LuatNhan.txt',
   t2s: 'TSCharacters.txt',
   supplement: 'Supplement.txt',
   pack: 'Pack-UuHoa.txt'
@@ -30,23 +31,33 @@ export function decode(buffer) {
 
 export async function loadEngine(readFile, settings = {}) {
   const t0 = Date.now();
-  const [vpText, namesText, paText, pronounsText, rulesText, t2sText, supplementText, packText] = await Promise.all(
-    Object.values(FILES).map(async f => {
-      // Supplement là file tùy chọn: thiếu thì engine vẫn chạy với lớp rỗng.
-      try { return await readFile(f); } catch { return null; }
-    })
-  );
+  // Nạp theo KEY (không destructure theo thứ tự values) — thêm file mới không lệch.
+  const bufs = {};
+  await Promise.all(Object.entries(FILES).map(async ([key, file]) => {
+    // Supplement/Pack/LuatNhan là file tùy chọn: thiếu thì engine vẫn chạy với lớp rỗng.
+    try { bufs[key] = await readFile(file); } catch { bufs[key] = null; }
+  }));
 
-  const vp = parseDict(decode(vpText));
-  const names = parseDict(decode(namesText));
-  const pa = parseDict(decode(paText), { singleChar: true });
-  const pronouns = parseDict(decode(pronounsText));
-  const t2s = parseT2S(decode(t2sText));
-  const rules = createRuleEngine(decode(rulesText));
+  const vp = parseDict(decode(bufs.vp));
+  const names = parseDict(decode(bufs.names));
+  const pa = parseDict(decode(bufs.pa), { singleChar: true });
+  const pronouns = parseDict(decode(bufs.pronouns));
+  const t2s = parseT2S(decode(bufs.t2s));
+  // VP/sup nạp trước để kiểm capture <e>: {0} của LuatNhan là TÊN — đoạn có nghĩa
+  // trong VP/sup thì rule nhường (tránh '个很<e>的人' nuốt '很厉害' giữ Hán).
+  const vpEarly = parseDict(decode(bufs.vp));
+  const supEarly = new Map([
+    ...(bufs.pack ? parseDict(decode(bufs.pack)) : []),
+    ...(bufs.supplement ? parseDict(decode(bufs.supplement)) : [])
+  ]);
+  const rejectCapture = cap => {
+    return vpEarly.has(cap) || supEarly.has(cap);   // CHỈ whole capture là từ có nghĩa
+  };
+  const rules = createRuleEngine(decode(bufs.rules) + '\n' + (bufs.luatNhan ? decode(bufs.luatNhan) : ''), { rejectCapture });
   // Lớp supplement gộp 2 nguồn: Pack-UuHoa (cộng đồng, nạp trước) < Supplement.txt (bản vá
   // tay của dự án, nạp sau -> thắng khi trùng key). Cả hai nằm dưới override của user.
-  const pack = packText ? parseDict(decode(packText)) : new Map();
-  const supplement = supplementText ? parseDict(decode(supplementText)) : new Map();
+  const pack = bufs.pack ? parseDict(decode(bufs.pack)) : new Map();
+  const supplement = bufs.supplement ? parseDict(decode(bufs.supplement)) : new Map();
   const supplementMerged = new Map([...pack, ...supplement]);
 
   const engine = createEngine({ pa, vp, names, pronouns, t2s, rules, supplement: supplementMerged }, settings);
