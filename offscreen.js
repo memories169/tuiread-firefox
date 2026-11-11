@@ -220,8 +220,16 @@ function mergeLuatNhan(ruleEngine, luatNhanText) {
     const acceptName = cap => {
       if (FUNC_FIRST.includes(cap[0])) return false;   // '是陆鸣' — động từ đứng đầu, không phải tên
       const val = DATA.vp.get(cap);
-      if (val === undefined) return cap.length <= 3;
-      return /^[A-ZÀ-ỸĐ]/.test(val.split('/')[0].trim());
+      if (val !== undefined) {
+        return /^[A-ZÀÁẰẲẴẸĂẮẲẴẶÂẦẤẨẪẬĐÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴ]/.test(val.split('/')[0].trim());
+      }
+      // Không trong VP: chỉ là TÊN MẢNH khi không ghép được từ VP nào (≥2 chữ)
+      for (let i = 0; i + 2 <= cap.length; i++) {
+        for (let len = 2; i + len <= cap.length; len++) {
+          if (DATA.vp.has(cap.slice(i, i + len))) return false;
+        }
+      }
+      return cap.length <= 3;
     };
     const acceptWhole = cap => DATA.vp.has(cap);
     const extra = createRuleEngine(luatNhanText, { rejectCapture, acceptName, acceptWhole });

@@ -60,7 +60,10 @@ const GOLDEN = [
   ['我愛你', 'Ta yêu ngươi'],  // dict gộp (dòng STV) chọn văn phong Hán-Việt ta/ngươi
   ['第三章', 'Chương 3:'],
   ['你好，世界！', 'Ngươi khỏe, thế giới!'],   // firstMeaning off: 'thế giới/vũ trụ/...' — check riêng ở dưới
-  ['他是一個很厲害的人。', 'Hắn là một người rất lợi hại.'],   // LuatNhan: 一个很厉害的<w>={0}
+  ['他是一個很厲害的人。', 'Hắn là một người rất lợi hại.'],
+  // Luật '的' tổng quát KHÔNG được nuốt tính từ/cụm có nghĩa ('紧闭','欣雀跃')
+  ['紧闭的院门哐的一声被猛然推开', 'Đóng chặc cửa sân rầm một tiếng bị mãnh nhiên đẩy ra'],
+  ['一道带著欢欣雀跃的女孩声音传进院中', 'Một đạo mang theo hân hoan tung tăng nữ hài âm thanh truyền vào trong viện'],   // LuatNhan: 一个很厉害的<w>={0}
   ['百分之五十', '50%'],
   ['這是系統', 'Đây là hệ thống'],
   ['剑神', 'Kiếm Thần'],

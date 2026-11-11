@@ -200,7 +200,7 @@ export function createEngine(dicts, settings = {}) {
             // -> 'Chương Nhạc'). Cụm thường ('两人口中') không đi đường này.
             const whole = vp.get(cap);
             const isName = whole !== undefined
-              ? /^[A-ZÀ-ỸĐ]/.test(whole.split('/')[0].trim())
+              ? /^[A-ZÀÁẰẲẴẸĂẮẲẴẶÂẦẤẨẪẬĐÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴ]/.test(whole.split('/')[0].trim())
               : [...cap].length >= 2;
             const render = s => isName
               ? s.split(/\s+/).map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ')

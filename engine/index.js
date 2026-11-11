@@ -76,9 +76,18 @@ export async function loadEngine(readFile, settings = {}) {
     const FUNC_FIRST = '是非乃为即系而这那把被对和与跟从向到让使给有在都也就才又再还很挺蛮但可是不';
     if (FUNC_FIRST.includes(cap[0])) return false;
     const val = vpEarly.get(cap);
-    if (val === undefined) return cap.length <= 3;   // không trong VP: coi là tên mảnh
-    const first = val.split('/')[0].trim();
-    return /^[A-ZÀ-ỸĐ]/.test(first);
+    if (val !== undefined) {
+      const first = val.split('/')[0].trim();
+      return /^[A-ZÀÁẰẲẴẸĂẮẲẴẶÂẦẤẨẪẬĐÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴ]/.test(first);
+    }
+    // Không trong VP: chỉ coi là TÊN MẢNH nếu CÁC CHỮ của nó KHÔNG ghép thành từ
+    // có nghĩa ('院门哐' chứa '院门'(VP) -> không phải tên; '章岳' -> là tên).
+    for (let i = 0; i + 2 <= cap.length; i++) {
+      for (let len = 2; i + len <= cap.length; len++) {
+        if (vpEarly.has(cap.slice(i, i + len))) return false;
+      }
+    }
+    return cap.length <= 3;
   };
   const acceptWhole = cap => vpEarly.has(cap);
   const rules = createRuleEngine(decode(bufs.rules) + '\n' + (bufs.luatNhan ? decode(bufs.luatNhan) : ''), { rejectCapture, acceptName, acceptWhole });
