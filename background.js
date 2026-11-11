@@ -154,7 +154,7 @@ function errText(err) {
 }
 
 async function readStore() {
-  const got = await callP(chrome.storage.local, 'get', ['settings', 'hostState', 'overrides', 'overridesVersion', 'siteSelectors', 'glossaries', 'glossariesVersion']);
+  const got = await callP(chrome.storage.local, 'get', ['settings', 'hostState', 'overrides', 'overridesVersion', 'siteSelectors', 'glossaries', 'glossariesVersion', 'userRules', 'userRulesVersion']);
   return {
     settings: got.settings || {},
     hostState: got.hostState || {},
@@ -162,7 +162,9 @@ async function readStore() {
     overridesVersion: got.overridesVersion || 0,
     siteSelectors: got.siteSelectors || DEFAULT_SITE_SELECTORS,
     glossaries: got.glossaries || {},
-    glossariesVersion: got.glossariesVersion || 0
+    glossariesVersion: got.glossariesVersion || 0,
+    userRules: got.userRules || {},
+    userRulesVersion: got.userRulesVersion || 0
   };
 }
 
@@ -287,6 +289,45 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       const { version, pushed } = await writeOverrides(map);
       sendResponse({ ok: true, overrides: map, version, pushed });
+    })().catch(err => sendResponse({ ok: false, error: errText(err) }));
+    return true;
+  }
+
+// ---- Luật nhân của tôi (rule nhân dạng {0} do user thêm trong options) ----
+// Lưu layer riêng 'userRules' trong chrome.storage — không đụng dict/LuatNhan.txt.
+// Engine rebuild + bump version đưa vào key cache nên bản dịch cũ tự chết.
+async function writeUserRules(map) {
+  const got = await callP(chrome.storage.local, 'get', 'userRulesVersion');
+  const version = (got.userRulesVersion || 0) + 1;
+  await callP(chrome.storage.local, 'set', { userRules: map, userRulesVersion: version });
+  let pushed = false;
+  try {
+    pushed = !!(await callP(chrome.runtime, 'sendMessage', { type: 'vp:user-rules', version }));
+  } catch { /* offscreen chưa sống — lần boot sau đọc store mới */ }
+  return { version, pushed };
+}
+
+  // Thay toàn bộ bộ luật nhân của user (options page: ô văn bản / nhập file).
+  // Dòng dạng: pattern=nghĩa với pattern chứa {0}; '#' đầu dòng = ghi chú.
+  if (msg.type === 'vp:userrules-replace') {
+    (async () => {
+      const map = {};
+      for (const entry of (msg.entries || [])) {
+        const pat = String((entry && entry.han) || '').trim();
+        const vi = String((entry && entry.vi) == null ? '' : entry.vi).trim();
+        if (pat && vi) map[pat] = vi;
+      }
+      const { version, pushed } = await writeUserRules(map);
+      sendResponse({ ok: true, userRules: map, version, pushed });
+    })().catch(err => sendResponse({ ok: false, error: errText(err) }));
+    return true;
+  }
+
+  // Danh sách luật nhân của user (options page hiển thị).
+  if (msg.type === 'vp:userrules-get') {
+    (async () => {
+      const got = await callP(chrome.storage.local, 'get', ['userRules', 'userRulesVersion']);
+      sendResponse({ ok: true, userRules: got.userRules || {}, userRulesVersion: got.userRulesVersion || 0 });
     })().catch(err => sendResponse({ ok: false, error: errText(err) }));
     return true;
   }

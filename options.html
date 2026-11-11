@@ -218,6 +218,31 @@
   </fieldset>
 
   <fieldset>
+    <legend>Luật nhân của tôi (thêm luật dạng {0} không đụng file LuatNhan.txt)</legend>
+    <p>Mỗi dòng một luật, cùng ngôn ngữ luật nhân: <strong>pattern=nghĩa</strong> — trong pattern,
+    <code>{0}</code> là chỗ trống bắt "tên riêng / cụm Hán" và trong nghĩa, <code>{0}</code> là chỗ
+    chèn phần bắt được (đã dịch). Thêm <code>!</code> đầu pattern để luật thắng cả khi hoà độ dài
+    với từ điển.</p>
+    <p>Ví dụ:<br>
+    <code>所以没有要卖{0}的意思=cho nên không có ý bán {0}</code><br>
+    <code>!根本不是{0}的对手=căn bản không phải là đối thủ của {0}</code><br>
+    <s><code>{0}说道={0} nói</code></s> (sai — pattern phải có ít nhất 1 chữ Hán cố định, ví dụ <code>他{0}说道=ông {0} nói</code>)</p>
+    <p id="urInfo">Đang tải…</p>
+    <textarea id="urText" placeholder="Mỗi dòng một luật:&#10;所以没有要卖{0}的意思=cho nên không có ý bán {0}&#10;根本不是{0}的对手=căn bản không phải là đối thủ của {0}"></textarea>
+    <p>
+      <button id="urApply">Lưu ngay (thay toàn bộ bằng ô trên)</button>
+      <button id="urExport">Xuất file .txt</button>
+      <button id="urImport">Nhập file .txt</button>
+      <input type="file" id="urFile" accept=".txt,text/plain" style="display:none">
+      <button id="urDelete" class="danger">Xoá tất cả luật của tôi</button>
+      <span id="urMsg"></span>
+    </p>
+    <p>Luật của bạn được gộp vào <strong>LuatNhan</strong> (luật cụ thể của bạn khớp trước luật tổng quát).
+    Lưu xong engine tự dựng lại — bấm "Dịch lại trang" ở popup để thấy luật mới. Dòng sai cú pháp
+    (thiếu dấu <code>=</code>) được bỏ qua im lặng.</p>
+  </fieldset>
+
+  <fieldset>
     <legend>Thử engine trên văn bản dán</legend>
     <textarea id="src" placeholder="Dán một đoạn tiếng Trung vào đây...">他没想到对方竟然会如此干脆利落，心中不由得一动，目光落在那枚古朴的戒指上。</textarea>
     <p><button id="run">Convert</button></p>

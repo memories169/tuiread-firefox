@@ -437,5 +437,108 @@ chrome.runtime.onMessage.addListener(msg => {
   if (glDirty) { glMsg('Bộ từ điển vừa đổi ở nơi khác — ô này đang có sửa chưa lưu.', true); return; }
   loadGlossaryBooks();
 });
-
 loadGlossaryBooks();
+// ---------------------------------------------------------------- Luật nhân của tôi (rule {0})
+// Layer riêng 'userRules' trong chrome.storage — gộp vào LuatNhan lúc engine dựng.
+// Định dạng dòng: pattern=nghĩa ({0} = chỗ bắt/ chèn); '#' = ghi chú. Tự lưu debounce 900ms.
+function urMsg(text, isErr) {
+  const el = $('urMsg');
+  el.textContent = text || '';
+  el.style.color = isErr ? '#b3261e' : '#0a7a2f';
+  setTimeout(() => { el.textContent = ''; }, 6000);
+}
+
+function parseRuleLines(text) {
+  const entries = [];
+  for (let line of String(text || '').split(/\r?\n/)) {
+    line = line.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq < 1) continue;
+    const pat = line.slice(0, eq).trim();
+    const vi = line.slice(eq + 1).trim();
+    if (!pat || !vi) continue;
+    // nghĩa tham chiếu {n} phải có chỗ bắt tương ứng trong pattern (tránh luật câm)
+    const refsInVi = (vi.match(/\{\d+\}/g) || []).length;
+    const capsInPat = (pat.match(/\{0\}/g) || []).length;
+    if (refsInVi > capsInPat) continue;
+    entries.push({ han: pat, vi });
+  }
+  return entries;
+}
+
+let urDirty = false;
+let urSaveTimer = null;
+
+async function loadUserRules() {
+  const got = await ask({ type: 'vp:userrules-get' });
+  const map = got && got.ok ? (got.userRules || {}) : {};
+  const count = Object.keys(map).length;
+  $('urInfo').textContent = count
+    ? `Đang có ${count} luật của bạn (bản số ${got.userRulesVersion || 0}) — ô dưới tự lưu khi bạn sửa.`
+    : 'Chưa có luật nào. Thêm dòng đầu tiên theo ví dụ phía trên.';
+  $('urText').value = Object.entries(map).map(([pat, vi]) => pat + '=' + vi).join('\n');
+  urDirty = false;
+}
+
+async function applyUserRules(entries, note) {
+  if (!entries.length) { urMsg('Không có dòng hợp lệ nào (dạng pattern=nghĩa).', true); return false; }
+  const resp = await ask({ type: 'vp:userrules-replace', entries });
+  if (!resp || !resp.ok) { urMsg('KHÔNG LƯU ĐƯỢC: ' + ((resp && resp.error) || 'background không trả lời'), true); return false; }
+  urDirty = false;
+  await loadUserRules();
+  urMsg(note + ` Engine tự dựng lại với ${Object.keys(resp.userRules).length} luật.` + (resp.pushed ? '' : ' (Engine chưa trả lời — bấm "Nạp lại từ điển" ở popup.)'));
+  return true;
+}
+
+$('urText').addEventListener('input', () => {
+  urDirty = true;
+  clearTimeout(urSaveTimer);
+  $('urInfo').textContent = 'Đang sửa… tự lưu sau khi bạn ngừng gõ.';
+  urSaveTimer = setTimeout(() => applyUserRules(parseRuleLines($('urText').value), 'Đã tự lưu.'), 900);
+});
+
+$('urApply').addEventListener('click', () => applyUserRules(parseRuleLines($('urText').value), 'Đã cập nhật.'));
+
+$('urExport').addEventListener('click', () => {
+  const lines = $('urText').value.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+  const header = '# TuiRead - luật nhân của tôi. Định dạng: pattern=nghĩa ({0} = chỗ bắt cụm Hán / chèn nghĩa)\n';
+  const blob = new Blob([header + lines.join('\n') + '\n'], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'tuiread-luatnhan-cua-toi.txt';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+});
+
+$('urImport').addEventListener('click', () => $('urFile').click());
+
+$('urFile').addEventListener('change', () => {
+  const file = $('urFile').files && $('urFile').files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => applyUserRules(parseRuleLines(String(reader.result || '')), `Đã nhập "${file.name}".`);
+  reader.onerror = () => urMsg('Không đọc được file.', true);
+  reader.readAsText(file, 'utf-8');
+  $('urFile').value = '';
+});
+
+$('urDelete').addEventListener('click', async () => {
+  const resp = await ask({ type: 'vp:userrules-replace', entries: [] });
+  if (!resp || !resp.ok) { urMsg('Không xoá được: ' + ((resp && resp.error) || 'không trả lời'), true); return; }
+  $('urText').value = '';
+  await loadUserRules();
+  urMsg('Đã xoá toàn bộ luật nhân của bạn.');
+});
+
+// Luật nhân đổi ở nơi khác -> nạp lại khi ô không đang sửa tay.
+chrome.runtime.onMessage.addListener(msg => {
+  if (!msg || msg.type !== 'vp:store-changed' || !(msg.keys || []).includes('userRules')) return;
+  if (urDirty) { urMsg('Luật vừa đổi ở nơi khác — ô này đang có sửa chưa lưu.', true); return; }
+  loadUserRules();
+});
+
+loadUserRules();

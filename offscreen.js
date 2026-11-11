@@ -15,7 +15,7 @@ import { DICT_VERSION, setKeyContext, makeKey, cacheGet, cachePut, cachePrune, c
 // MARKER PHIÊN BẢN ENGINE: in ra console của background/offscreen để xác minh bản
 // đang chạy; 'build' kèm trong MỌI response — content/popup cảnh báo khi lệch bản
 // (chống 'zombie engine view' sống sót qua Reload add-on trả kết quả cũ).
-const ENGINE_BUILD = '0.7.0';
+const ENGINE_BUILD = '0.7.1';
 console.log('[TuiRead] engine build ' + ENGINE_BUILD + ' (DICT_VERSION ' + DICT_VERSION + ', có quy tắc 的)');
 
 const DATA = { vp: null, names: null, pa: null, pronouns: null, t2s: null, rules: null, supplement: null };
@@ -166,6 +166,30 @@ async function fetchSettings() {
 
 let appliedEngineSettings = {};
 let appliedOverridesVersion = -1;
+let userRulesVersion = 0;   // luật nhân của user (options) — version đưa vào key cache
+
+// Luật nhân của user (options page): đọc từ store QUA background (kiến trúc: offscreen
+// không chạm chrome.storage), trả về chuỗi luật nối vào LuatNhan. Luật user thắng
+// LuatNhan khi cùng khớp vì nối SAU (matchAt gộp lấy khớp dài hơn; cùng dài → a=extra
+// gồm cả user rules — thứ tự trong chuỗi quyết định candidates). Cache TEXT một lần
+// cho tới khi version đổi — rebuild chỉ parse lại khi user thực sự sửa luật.
+let userRulesCache = { version: -1, text: '' };
+async function loadUserRulesText() {
+  const got = await askSW({ type: 'vp:get-settings' });
+  const store = got && got.ok ? got : null;
+  const version = store ? (store.userRulesVersion || 0) : 0;
+  if (userRulesCache.version === version && userRulesCache.text) return userRulesCache.text;
+  const map = store ? (store.userRules || {}) : {};
+  // {0} trong luật user là cú pháp NGƯỜI DÙNG — engine hiểu <e> (run Hán 1..8).
+  const lines = Object.entries(map).map(([pat, vi]) =>
+    pat.replace(/\{(\d+)\}/g, (_, n) => (n === '0' ? '<e>' : `{${n}}`)) + '=' + vi
+  ).join('\n');
+  userRulesCache = { version, text: lines };
+  return lines;
+}
+function buildUserRulesText() {
+  return userRulesCache.text || '';
+}
 
 // Gộp LuatNhan vào rule engine: dựng engine phụ rồi hợp rules (LuatNhan thắng khi
 // cùng key anchor — nối sau). Không đụng rule.txt trên đĩa.
@@ -216,6 +240,7 @@ function cacheContextParts(settings) {
     'sup' + (supplementHash || 0),
     'ov' + overridesVersion,
     'gl' + glossariesVersion,
+    'ur' + userRulesVersion,
     ...ENGINE_KEYS.map(key => key.charAt(0) + String(settings[key] === undefined ? '' : settings[key]))
   ];
 }
@@ -224,6 +249,7 @@ async function rebuild(reason) {
   noteEvent('rebuild(' + reason + ') bắt đầu');
   const t0 = Date.now();
   const parsedMs = await loadData();
+  await loadUserRulesText();   // luật nhân của user (nếu đổi) — cache theo version
   const { settings, fromWorker, store } = await fetchSettings();
   // Rebuild do override/glossary/settings đổi -> engine-per-book đều stale, xoá sạch.
   // (Rebuild do đổi sách chỉ chuyển appliedBookKey, không tới đây.)
@@ -233,6 +259,7 @@ async function rebuild(reason) {
     overridesVersion = store.overridesVersion || 0;
     glossariesMap = store.glossaries || {};
     glossariesVersion = store.glossariesVersion || 0;
+    userRulesVersion = store.userRulesVersion || 0;
   }
   setKeyContext(cacheContextParts(settings));
   setStatus({ state: 'loading', message: 'Đang dựng engine (lập chỉ mục cụm từ)...', progress: 0.95 });
@@ -254,7 +281,7 @@ async function rebuild(reason) {
   }
   const glossary = new Map(Object.entries(glossariesMap[bookEngineKey] || {}));
   engine = createEngine(
-    { pa: DATA.pa, vp: DATA.vp, names: DATA.names, pronouns: DATA.pronouns, t2s: DATA.t2s, rules: mergeLuatNhan(DATA.rules, DATA.luatNhan), overrides: overridesMap, glossary, supplement: supplementMerged, vpMax: DATA_MAX.vpMax, namesMax: DATA_MAX.namesMax },
+    { pa: DATA.pa, vp: DATA.vp, names: DATA.names, pronouns: DATA.pronouns, t2s: DATA.t2s, rules: mergeLuatNhan(DATA.rules, buildUserRulesText()), overrides: overridesMap, glossary, supplement: supplementMerged, vpMax: DATA_MAX.vpMax, namesMax: DATA_MAX.namesMax },
     settings
   );
   engineByBook.set(bookEngineKey, engine);
@@ -337,6 +364,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         appliedBookKey = '';   // buộc rebuild engine-per-book để glossary mới vào đúng sách
         await rebuildSerialized('overrides');
       }
+      sendResponse({ ok: true });
+    })().catch(err => { fail(err); sendResponse({ ok: false, error: String(err && err.message || err) }); });
+    return true;
+  }
+
+  // Luật nhân của user đổi (options page lưu): bump version -> rebuild engine.
+  if (msg.type === 'vp:user-rules') {
+    (async () => {
+      noteEvent('nhận user-rules version ' + (msg.version || 0));
+      userRulesCache = { version: -1, text: '' };   // ép đọc lại store
+      appliedBookKey = '';
+      await rebuildSerialized('user-rules');
       sendResponse({ ok: true });
     })().catch(err => { fail(err); sendResponse({ ok: false, error: String(err && err.message || err) }); });
     return true;
