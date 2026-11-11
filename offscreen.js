@@ -289,7 +289,7 @@ async function rebuild(reason) {
   }
   const glossary = new Map(Object.entries(glossariesMap[bookEngineKey] || {}));
   engine = createEngine(
-    { pa: DATA.pa, vp: DATA.vp, names: DATA.names, pronouns: DATA.pronouns, t2s: DATA.t2s, rules: mergeLuatNhan(DATA.rules, buildUserRulesText()), overrides: overridesMap, glossary, supplement: supplementMerged, vpMax: DATA_MAX.vpMax, namesMax: DATA_MAX.namesMax },
+    { pa: DATA.pa, vp: DATA.vp, names: DATA.names, pronouns: DATA.pronouns, t2s: DATA.t2s, rules: mergeLuatNhan(DATA.rules, [DATA.luatNhan, buildUserRulesText()].filter(Boolean).join('\n')), overrides: overridesMap, glossary, supplement: supplementMerged, vpMax: DATA_MAX.vpMax, namesMax: DATA_MAX.namesMax },
     settings
   );
   engineByBook.set(bookEngineKey, engine);

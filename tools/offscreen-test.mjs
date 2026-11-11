@@ -169,6 +169,13 @@ check('golden: 這是系統 (firstMeaning=false -> giu moi nghia)',
   tr && tr.results[1] === 'Đây là hệ thống/có hệ thống/có quy củ/có ngăn nắp', tr && tr.results[1]);
 check('golden: 第三章 -> Chương 3:', tr && tr.results[2] === 'Chương 3:', tr && tr.results[2]);
 
+// Luật nhân: apposition 'A的[quan hệ][tên]' — '陸鳴的爺爺陸瑾' qua offscreen wrapper
+const trLN = await ask({ type: 'vp:translate', texts: ['陸鳴的爺爺陸瑾', '陸檬檬的小女孩'] });
+check('luat nhan apposition: 陸鳴的爺爺陸瑾 (khong "nhu the")',
+  trLN && trLN.results[0] === 'Gia gia của Lục Minh lục cẩn', trLN && trLN.results && JSON.stringify(trLN.results));
+check('luat nhan giu trat tu: 陸檬檬的小女孩',
+  trLN && trLN.results[1] === 'Lục Mông Mông tiểu nữ hài', trLN && trLN.results && JSON.stringify(trLN.results));
+
 // status cua offscreen phai nam trong chrome.storage (qua background), popup doc o do
 check('engineStatus duoc day sang chrome.storage qua service worker',
   store.engineStatus && store.engineStatus.state === 'ready', store.engineStatus && store.engineStatus.state);
