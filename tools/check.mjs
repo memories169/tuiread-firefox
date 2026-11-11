@@ -62,10 +62,12 @@ const GOLDEN = [
   ['你好，世界！', 'Ngươi khỏe, thế giới!'],   // firstMeaning off: 'thế giới/vũ trụ/...' — check riêng ở dưới
   ['他是一個很厲害的人。', 'Hắn là một người rất lợi hại.'],
   // Luật '的' tổng quát KHÔNG được nuốt tính từ/cụm có nghĩa ('紧闭','欣雀跃')
-  ['紧闭的院门哐的一声被猛然推开', 'Đóng chặc cửa sân rầm một tiếng bị mãnh nhiên đẩy ra'],
+  ['紧闭的院门哐的一声被猛然推开', 'Đóng chặt cửa sân rầm một tiếng bị mãnh nhiên đẩy ra'],
   ['一道带著欢欣雀跃的女孩声音传进院中', 'Một đạo mang theo hân hoan tung tăng nữ hài âm thanh truyền vào trong viện'],
   // Luật '他的<token>' KHÔNG được nuốt nguyên mệnh đề (token sau '的' ≤3 chữ)
-  ['他的面庞虽然还带著一些少年的稚气', 'Khuôn mặt của hắn mặc dù còn mang theo một chút ngây thơ của thiếu niên'],   // LuatNhan: 一个很厉害的<w>={0}
+  ['他的面庞虽然还带著一些少年的稚气', 'Khuôn mặt của hắn mặc dù còn mang theo một chút ngây thơ của thiếu niên'],
+  // Chữ vị trí/thời gian đứng ĐUÔI cụm không được làm capture tên ('炼中')
+  ['修炼中的少年惊醒', 'Trong tu luyện thiếu niên bừng tỉnh'],   // LuatNhan: 一个很厉害的<w>={0}
   ['百分之五十', '50%'],
   ['這是系統', 'Đây là hệ thống'],
   ['剑神', 'Kiếm Thần'],

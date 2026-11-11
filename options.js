@@ -481,12 +481,15 @@ async function loadUserRules() {
   urDirty = false;
 }
 
-async function applyUserRules(entries, note) {
+async function applyUserRules(entries, note, opts = {}) {
   if (!entries.length) { urMsg('Không có dòng hợp lệ nào (dạng pattern=nghĩa).', true); return false; }
   const resp = await ask({ type: 'vp:userrules-replace', entries });
   if (!resp || !resp.ok) { urMsg('KHÔNG LƯU ĐƯỢC: ' + ((resp && resp.error) || 'background không trả lời'), true); return false; }
   urDirty = false;
-  await loadUserRules();
+  // KHÔNG rebuild textarea khi đang gõ: dòng dở (chưa có '=') bị parseRuleLines
+  // lọc nên rebuild làm XOÁ chữ user vừa gõ + nhảy con trỏ. Chỉ refresh hiển thị
+  // khi lưu chủ động (Lưu/Nhập/Xoá).
+  if (opts.refresh !== false) await loadUserRules();
   urMsg(note + ` Engine tự dựng lại với ${Object.keys(resp.userRules).length} luật.` + (resp.pushed ? '' : ' (Engine chưa trả lời — bấm "Nạp lại từ điển" ở popup.)'));
   return true;
 }
@@ -495,7 +498,8 @@ $('urText').addEventListener('input', () => {
   urDirty = true;
   clearTimeout(urSaveTimer);
   $('urInfo').textContent = 'Đang sửa… tự lưu sau khi bạn ngừng gõ.';
-  urSaveTimer = setTimeout(() => applyUserRules(parseRuleLines($('urText').value), 'Đã tự lưu.'), 900);
+  // Tự lưu im lặng: KHÔNG rebuild textarea — không xoá dòng đang dở khi gõ
+  urSaveTimer = setTimeout(() => applyUserRules(parseRuleLines($('urText').value), 'Đã tự lưu.', { refresh: false }), 900);
 });
 
 $('urApply').addEventListener('click', () => applyUserRules(parseRuleLines($('urText').value), 'Đã cập nhật.'));

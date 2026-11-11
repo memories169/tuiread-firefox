@@ -217,8 +217,10 @@ function mergeLuatNhan(ruleEngine, luatNhanText) {
       return false;
     };
     const FUNC_FIRST = '是非乃为即系而这那把被对和与跟从向到让使给有在都也就才又再还很挺蛮但可是不';
+    const FUNC_LAST = '中里内间上下前后旁侧边时之者们底';
     const acceptName = cap => {
       if (FUNC_FIRST.includes(cap[0])) return false;   // '是陆鸣' — động từ đứng đầu, không phải tên
+      if (FUNC_LAST.includes(cap[cap.length - 1])) return false;   // '炼中' — chữ vị trí/thời gian đuôi cụm
       const val = DATA.vp.get(cap);
       if (val !== undefined) {
         return /^[A-ZÀÁẰẲẴẸĂẮẲẴẶÂẦẤẨẪẬĐÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴ]/.test(val.split('/')[0].trim());
